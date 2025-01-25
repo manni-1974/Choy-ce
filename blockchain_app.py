@@ -1,5 +1,6 @@
 import time
 import hashlib
+import os
 
 class Transaction:
     def __init__(self, sender, receiver, amount):
@@ -118,4 +119,4 @@ def get_balances():
     return jsonify(balances)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5001)))

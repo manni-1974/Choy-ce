@@ -1,6 +1,11 @@
 import time
 import hashlib
 import os
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 class Transaction:
     def __init__(self, sender, receiver, amount):
@@ -76,9 +81,9 @@ class Blockchain:
                 balances[tx.receiver] = balances.get(tx.receiver, 0) + tx.amount
         return balances
 
-from flask import Flask, jsonify, request
 
-app = Flask(__name__)
+
+
 
 my_blockchain = Blockchain()
 

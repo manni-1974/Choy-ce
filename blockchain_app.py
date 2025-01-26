@@ -1,7 +1,7 @@
 import time
 import hashlib
 import os
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -84,8 +84,12 @@ class Blockchain:
 my_blockchain = Blockchain()
 
 @app.route('/')
-def home():
-    return "Welcome to the Blockchain App!"
+def serve_index():
+    return send_from_directory("frontend", "index.html")
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory("frontend", path)
 
 @app.route('/blockchain', methods=['GET'])
 def get_blockchain():

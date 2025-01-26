@@ -81,10 +81,6 @@ class Blockchain:
                 balances[tx.receiver] = balances.get(tx.receiver, 0) + tx.amount
         return balances
 
-
-
-
-
 my_blockchain = Blockchain()
 
 @app.route('/')
@@ -124,4 +120,4 @@ def get_balances():
     return jsonify(balances)
 
 if __name__ == "__main__":
-     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5001)))
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5001)))

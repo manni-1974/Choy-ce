@@ -7,12 +7,25 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Blockchain Interaction</h1>
-    <div class="buttons">
+    <h1>Blockchain Dashboard</h1>
+    <div class="button-group">
         <button id="view-blockchain">View Blockchain</button>
         <button id="add-transaction">Add Transaction</button>
     </div>
-    <div id="blockchain-output"></div>
+    <table id="blockchain-table">
+        <thead>
+            <tr>
+                <th data-filter="signature">Signature</th>
+                <th data-filter="time">Time</th>
+                <th data-filter="action">Action</th>
+                <th data-filter="from">From</th>
+                <th data-filter="to">To</th>
+                <th data-filter="amount">Amount</th>
+            </tr>
+        </thead>
+        <tbody id="blockchain-output">
+        </tbody>
+    </table>
     <script src="script.js"></script>
 </body>
 </html>

@@ -3,29 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blockchain Frontend</title>
+    <title>Blockchain Dashboard</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <h1>Blockchain Dashboard</h1>
-    <div class="button-group">
-        <button id="view-blockchain">View Blockchain</button>
-        <button id="add-transaction">Add Transaction</button>
+    <button id="view-blockchain">View Blockchain</button>
+    <button id="add-transaction">Add Transaction</button>
+    <div id="filter-bar">
+        <input type="text" id="filter-time" placeholder="Filter by Time">
+        <input type="text" id="filter-action" placeholder="Filter by Action">
+        <input type="text" id="filter-from" placeholder="Filter by From">
+        <input type="text" id="filter-to" placeholder="Filter by To">
+        <input type="text" id="filter-amount" placeholder="Filter by Amount">
     </div>
-    <table id="blockchain-table">
-        <thead>
-            <tr>
-                <th data-filter="signature">Signature</th>
-                <th data-filter="time">Time</th>
-                <th data-filter="action">Action</th>
-                <th data-filter="from">From</th>
-                <th data-filter="to">To</th>
-                <th data-filter="amount">Amount</th>
-            </tr>
-        </thead>
-        <tbody id="blockchain-output">
-        </tbody>
-    </table>
+    <div id="blockchain-output"></div>
     <script src="script.js"></script>
 </body>
 </html>

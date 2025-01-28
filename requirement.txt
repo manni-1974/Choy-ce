@@ -1,8 +1,0 @@
-flask==3.0.3
-werkzeug==3.0.6
-jinja2==3.1.5
-click==8.1.8
-itsdangerous==2.2.0
-blinker==1.8.2
-watchdog==4.0.2
-flask_cors==3.0.10

@@ -7,17 +7,46 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Blockchain Dashboard</h1>
-    <button id="view-blockchain">View Blockchain</button>
-    <button id="add-transaction">Add Transaction</button>
-    <div id="filter-bar">
-        <input type="text" id="filter-time" placeholder="Filter by Time">
-        <input type="text" id="filter-action" placeholder="Filter by Action">
-        <input type="text" id="filter-from" placeholder="Filter by From">
-        <input type="text" id="filter-to" placeholder="Filter by To">
-        <input type="text" id="filter-amount" placeholder="Filter by Amount">
+    <div id="dashboard">
+        <h1 id="dashboard-title">Blockchain Dashboard</h1>
+        <div id="rectangle4">
+            <h2>Market Overview</h2>
+            <div class="overview-detail">
+                <p>Token Name <span>Decimals</span></p>
+                <p>Price <span>Token Address</span></p>
+                <p>Holders</p>
+            </div>
+        </div>
+        <div id="stats">
+            <div id="rectangle2">
+                <h2>Circulating Supply</h2>
+                <p>0 / 450M</p>
+                <p>0% in circulation</p>
+            </div>
+            <div id="rectangle3">
+                <h2>Active Staking</h2>
+                <p>0 / 450M</p>
+            </div>
+        </div>
+        <div id="rectangle5">
+            <h2>Transactions</h2>
+            <div id="filter">
+                <p>Signature <span class="filter-icon">🔍</span></p>
+                <p>Time <span class="filter-icon">🔍</span></p>
+                <p>Action <span class="filter-icon">🔍</span></p>
+                <p>From <span class="filter-icon">🔍</span></p>
+                <p>To <span class="filter-icon">🔍</span></p>
+                <p>Amount <span class="filter-icon">🔍</span></p>
+                <p>Token <span class="filter-icon">🔍</span></p>
+            </div>
+            <div id="transaction-rows">
+                <div id="rectangle7"></div>
+                <div id="rectangle8"></div>
+                <div id="rectangle9"></div>
+                <div id="rectangle10"></div>
+            </div>
+        </div>
     </div>
-    <div id="blockchain-output"></div>
     <script src="script.js"></script>
 </body>
 </html>

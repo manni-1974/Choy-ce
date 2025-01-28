@@ -1,123 +1,103 @@
-import time
+from flask import Flask, jsonify, request
+import json
+from time import time
 import hashlib
-import os
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
 
-app = Flask(__name__, static_folder='frontend', static_url_path='')
-CORS(app, resources={r"/*": {"origins": "*"}})
-
-class Transaction:
-    def __init__(self, sender, receiver, amount):
-        self.sender = sender
-        self.receiver = receiver
-        self.amount = amount
-
-    def __str__(self):
-        return f"{self.sender} -> {self.receiver}: {self.amount}"
-
-class Block:
-    def __init__(self, transactions, previous_hash, poh, timestamp=None):
-        self.timestamp = timestamp if timestamp else time.time()
-        self.transactions = transactions
-        self.previous_hash = previous_hash
-        self.poh = poh
-        self.hash = self.calculate_hash()
-
-    def calculate_hash(self):
-        transaction_data = "".join(str(tx) for tx in self.transactions)
-        block_data = f"{self.timestamp}{transaction_data}{self.previous_hash}{self.poh}"
-        return hashlib.sha256(block_data.encode()).hexdigest()
-
-class ProofOfHistory:
+class Ifchain:
     def __init__(self):
-        self.sequence = []
+        self.chain = []
+        self.transactions = []
+        self.create_block(proof=1, previous_hash='0')
 
-    def generate_hash(self, data):
-        timestamp = time.time()
-        prev_hash = self.sequence[-1] if self.sequence else "0"
-        new_hash = hashlib.sha256(f"{data}{timestamp}{prev_hash}".encode()).hexdigest()
-        self.sequence.append(new_hash)
-        return new_hash
+    def create_block(self, proof, previous_hash):
+        block = {
+            'index': len(self.chain) + 1,
+            'timestamp': time(),
+            'proof': proof,
+            'previous_hash': previous_hash,
+            'transactions': self.transactions
+        }
+        self.transactions = []
+        self.chain.append(block)
+        return block
 
-class Blockchain:
-    def __init__(self):
-        self.poh = ProofOfHistory()
-        self.chain = [self.create_genesis_block()]
-
-    def create_genesis_block(self):
-        poh_hash = self.poh.generate_hash("Genesis Block")
-        genesis_transactions = [Transaction("System", "Genesis", 0)]
-        return Block(genesis_transactions, "0", poh_hash)
-
-    def get_latest_block(self):
+    def get_previous_block(self):
         return self.chain[-1]
 
-    def add_block(self, transactions):
-        previous_block = self.get_latest_block()
-        poh_hash = self.poh.generate_hash("Transactions Block")
-        new_block = Block(transactions, previous_block.hash, poh_hash)
-        self.chain.append(new_block)
+    def proof_of_work(self, previous_proof):
+        new_proof = 1
+        check_proof = False
+        while not check_proof:
+            hash_operation = hashlib.sha256(
+                str(new_proof**2 - previous_proof**2).encode()).hexdigest()
+            if hash_operation[:4] == '0000':
+                check_proof = True
+            else:
+                new_proof += 1
+        return new_proof
 
-    def is_chain_valid(self):
-        for i in range(1, len(self.chain)):
-            current_block = self.chain[i]
-            previous_block = self.chain[i - 1]
+    def hash(self, block):
+        encoded_block = json.dumps(block, sort_keys=True).encode()
+        return hashlib.sha256(encoded_block).hexdigest()
 
-            if current_block.hash != current_block.calculate_hash():
+    def is_chain_valid(self, chain):
+        previous_block = chain[0]
+        block_index = 1
+        while block_index < len(chain):
+            block = chain[block_index]
+            if block['previous_hash'] != self.hash(previous_block):
                 return False
-
-            if current_block.previous_hash != previous_block.hash:
+            previous_proof = previous_block['proof']
+            proof = block['proof']
+            hash_operation = hashlib.sha256(
+                str(proof**2 - previous_proof**2).encode()).hexdigest()
+            if hash_operation[:4] != '0000':
                 return False
-
+            previous_block = block
+            block_index += 1
         return True
 
-    def calculate_balances(self):
-        balances = {}
-        for block in self.chain:
-            for tx in block.transactions:
-                if tx.sender != "System":
-                    balances[tx.sender] = balances.get(tx.sender, 0) - tx.amount
-                balances[tx.receiver] = balances.get(tx.receiver, 0) + tx.amount
-        return balances
 
-my_blockchain = Blockchain()
+app = Flask(__name__)
+ifchain = Ifchain()
 
-@app.route('/')
-def home():
-    return app.send_static_file('index.html')
 
-@app.route('/blockchain', methods=['GET'])
-def get_blockchain():
-    chain_data = []
-    for block in my_blockchain.chain:
-        chain_data.append({
-            "index": my_blockchain.chain.index(block),
-            "timestamp": block.timestamp,
-            "transactions": [{"sender": tx.sender, "receiver": tx.receiver, "amount": tx.amount} for tx in block.transactions],
-            "previous_hash": block.previous_hash,
-            "hash": block.hash,
-            "poh": block.poh
-        })
-    return jsonify({"length": len(my_blockchain.chain), "chain": chain_data})
+@app.route('/mine_block', methods=['GET'])
+def mine_block():
+    previous_block = ifchain.get_previous_block()
+    previous_proof = previous_block['proof']
+    proof = ifchain.proof_of_work(previous_proof)
+    previous_hash = ifchain.hash(previous_block)
+    block = ifchain.create_block(proof, previous_hash)
+    response = {
+        'message': 'Block mined successfully!',
+        'index': block['index'],
+        'timestamp': block['timestamp'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash'],
+        'transactions': block['transactions']
+    }
+    return jsonify(response), 200
 
-@app.route('/add_transaction', methods=['POST'])
-def add_transaction():
-    data = request.json
-    sender = data.get("sender")
-    receiver = data.get("receiver")
-    amount = data.get("amount")
-    if not sender or not receiver or not amount:
-        return jsonify({"message": "Invalid transaction data"}), 400
 
-    transaction = Transaction(sender, receiver, amount)
-    my_blockchain.add_block([transaction])
-    return jsonify({"message": "Transaction added and block mined!"})
+@app.route('/get_chain', methods=['GET'])
+def get_chain():
+    response = {
+        'chain': ifchain.chain,
+        'length': len(ifchain.chain)
+    }
+    return jsonify(response), 200
 
-@app.route('/balances', methods=['GET'])
-def get_balances():
-    balances = my_blockchain.calculate_balances()
-    return jsonify(balances)
+
+@app.route('/is_valid', methods=['GET'])
+def is_valid():
+    is_valid = ifchain.is_chain_valid(ifchain.chain)
+    if is_valid:
+        response = {'message': 'The blockchain is valid.'}
+    else:
+        response = {'message': 'The blockchain is not valid.'}
+    return jsonify(response), 200
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5001)))
+    app.run(host='0.0.0.0', port=5001)

@@ -1,2 +1,2 @@
-# Choy-ce
+# IFChain
 Blockchain

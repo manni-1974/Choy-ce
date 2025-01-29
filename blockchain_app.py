@@ -159,5 +159,16 @@ def freeze_token():
     ifchain.frozen_tokens.add(token)
     return jsonify({"message": f"Token {token} has been frozen"}), 201
 
+@app.route('/unfreeze_token', methods=['POST'])
+def unfreeze_token():
+    data = request.get_json()
+    token = data.get("token")
+    
+    if token in ifchain.frozen_tokens:
+        del ifchain.frozen_tokens[token]
+        return jsonify({"message": f"{token} has been unfrozen."}), 200
+    else:
+        return jsonify({"error": "Token is not frozen or does not exist."}), 400
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

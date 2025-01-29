@@ -43,7 +43,7 @@ class IFChain:
         self.unconfirmed_transactions = []
         self.chain = []
         self.poh = PoH()
-        self.frozen_tokens = set()
+        self.frozen_tokens = {}
         self.create_genesis_block()
 
     def create_genesis_block(self):
@@ -69,15 +69,12 @@ class IFChain:
                 block_hash == block.compute_hash())
 
     def add_new_transaction(self, transaction):
-        token = transaction.get("token")
-        if token in self.frozen_tokens:
+        if transaction["token"] in self.frozen_tokens and self.frozen_tokens[transaction["token"]]:
             return False
-        
         tax = transaction['amount'] * IFChain.transaction_tax_rate
         net_amount = transaction['amount'] - tax
         if net_amount < 0:
             return False
-        
         transaction['tax'] = tax
         transaction['net_amount'] = net_amount
         self.unconfirmed_transactions.append(transaction)
@@ -105,6 +102,16 @@ class IFChain:
             block.nonce += 1
             computed_hash = block.compute_hash()
         return computed_hash
+
+    def freeze_token(self, token):
+        self.frozen_tokens[token] = True
+        return True
+
+    def unfreeze_token(self, token):
+        if token in self.frozen_tokens and self.frozen_tokens[token]:
+            self.frozen_tokens[token] = False
+            return True
+        return False
 
 ifchain = IFChain()
 
@@ -149,26 +156,24 @@ def get_poh_history():
 def freeze_token():
     data = request.get_json()
     token = data.get("token")
-
     if not token:
-        return jsonify({"error": "Token name is required"}), 400
-
-    if token in ifchain.frozen_tokens:
-        return jsonify({"message": f"Token {token} is already frozen"}), 200
-
-    ifchain.frozen_tokens.add(token)
-    return jsonify({"message": f"Token {token} has been frozen"}), 201
+        return jsonify({"error": "Token is required"}), 400
+    ifchain.freeze_token(token)
+    return jsonify({"message": f"Token {token} has been frozen."}), 200
 
 @app.route('/unfreeze_token', methods=['POST'])
 def unfreeze_token():
     data = request.get_json()
     token = data.get("token")
-    
-    if token in ifchain.frozen_tokens:
-        del ifchain.frozen_tokens[token]
-        return jsonify({"message": f"{token} has been unfrozen."}), 200
-    else:
-        return jsonify({"error": "Token is not frozen or does not exist."}), 400
+    if not token:
+        return jsonify({"error": "Token is required"}), 400
+    if ifchain.unfreeze_token(token):
+        return jsonify({"message": f"Token {token} has been unfrozen."}), 200
+    return jsonify({"error": "Token is not frozen or does not exist."}), 400
+
+@app.route('/frozen_tokens', methods=['GET'])
+def get_frozen_tokens():
+    return jsonify({"frozen_tokens": ifchain.frozen_tokens})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 import time
 import hashlib
 import json
+import schedule
 import threading
 
 app = Flask(__name__)
@@ -42,6 +43,7 @@ class IFChain:
     def __init__(self):
         self.unconfirmed_transactions = []
         self.chain = []
+        self.frozen_tokens = set()  # Stores frozen tokens
         self.poh = PoH()
         self.create_genesis_block()
 
@@ -68,6 +70,9 @@ class IFChain:
                 block_hash == block.compute_hash())
 
     def add_new_transaction(self, transaction):
+        if transaction['token'] in self.frozen_tokens:
+            return False  # Reject transaction if token is frozen
+        
         tax = transaction['amount'] * IFChain.transaction_tax_rate
         net_amount = transaction['amount'] - tax
         if net_amount < 0:
@@ -77,28 +82,11 @@ class IFChain:
         self.unconfirmed_transactions.append(transaction)
         return True
 
-    def mine(self):
-        if not self.unconfirmed_transactions:
-            return False
-        last_block = self.last_block()
-        poh_hash = self.poh.current_hash
-        new_block = Block(index=last_block.index + 1,
-                          timestamp=time.time(),
-                          transactions=self.unconfirmed_transactions,
-                          previous_hash=last_block.hash,
-                          poh_hash=poh_hash)
-        proof = self.proof_of_work(new_block)
-        self.add_block(new_block, proof)
-        self.unconfirmed_transactions = []
-        return new_block.index
+    def freeze_token(self, token):
+        self.frozen_tokens.add(token)
 
-    def proof_of_work(self, block):
-        block.nonce = 0
-        computed_hash = block.compute_hash()
-        while not computed_hash.startswith('0' * IFChain.difficulty):
-            block.nonce += 1
-            computed_hash = block.compute_hash()
-        return computed_hash
+    def unfreeze_token(self, token):
+        self.frozen_tokens.discard(token)
 
 ifchain = IFChain()
 
@@ -126,7 +114,7 @@ def add_transaction():
     if ifchain.add_new_transaction(tx_data):
         return "Transaction added to the pool", 201
     else:
-        return "Transaction invalid", 400
+        return "Transaction invalid or token is frozen", 400
 
 @app.route('/mine', methods=['GET'])
 def mine():
@@ -139,9 +127,23 @@ def mine():
 def get_poh_history():
     return jsonify(ifchain.poh.get_history())
 
-@app.route('/', methods=['GET'])
-def home():
-    return "IFChain API is running", 200
+@app.route('/freeze_token', methods=['POST'])
+def freeze_token():
+    data = request.get_json()
+    token = data.get("token")
+    if not token:
+        return "Token name required", 400
+    ifchain.freeze_token(token)
+    return f"Token {token} is now frozen.", 200
+
+@app.route('/unfreeze_token', methods=['POST'])
+def unfreeze_token():
+    data = request.get_json()
+    token = data.get("token")
+    if not token:
+        return "Token name required", 400
+    ifchain.unfreeze_token(token)
+    return f"Token {token} is now unfrozen.", 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

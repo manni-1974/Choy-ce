@@ -2,7 +2,6 @@ from flask import Flask, jsonify, request
 import time
 import hashlib
 import json
-import schedule
 import threading
 
 app = Flask(__name__)
@@ -140,11 +139,9 @@ def mine():
 def get_poh_history():
     return jsonify(ifchain.poh.get_history())
 
+@app.route('/', methods=['GET'])
+def home():
+    return "IFChain API is running", 200
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
-
-
-
-
-
-

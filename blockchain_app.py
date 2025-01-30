@@ -206,7 +206,7 @@ def mint_tokens():
         return jsonify({"message": f"{data['amount']} {data['token']} minted."}), 200
     return jsonify({"error": "Minting failed."}), 400
 
-schedule.every().year.do(ifchain.apply_inflation)
+schedule.every(365).days.do(ifchain.apply_inflation)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

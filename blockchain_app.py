@@ -49,6 +49,7 @@ class IFChain:
         self.frozen_tokens = {}
         self.burned_tokens = 0
         self.inflation_schedule = self.generate_inflation_schedule()
+        self.applied_inflation_years = set()
 
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
@@ -145,10 +146,13 @@ class IFChain:
 
     def apply_inflation(self):
         current_year = int(time.strftime("%Y"))
-        if current_year in self.inflation_schedule:
+        if current_year in self.inflation_schedule and current_year not in self.applied_inflation_years:
             new_tokens = int(self.token_supply * self.inflation_schedule[current_year])
             self.mint_tokens("IFC", new_tokens)
+            self.applied_inflation_years.add(current_year)
             print(f"Minted {new_tokens} IFC for inflation in {current_year}.")
+            return True
+        return False
 
 ifchain = IFChain()
 
@@ -168,6 +172,12 @@ def get_chain():
     for block in ifchain.chain:
         chain_data.append(block.__dict__)
     return jsonify({"length": len(chain_data), "chain": chain_data})
+
+@app.route('/apply_inflation', methods=['POST'])
+def trigger_inflation():
+    if ifchain.apply_inflation():
+        return jsonify({"message": "Inflation applied successfully."}), 200
+    return jsonify({"error": "Inflation already applied for this year or not scheduled."}), 400
 
 @app.route('/add_transaction', methods=['POST'])
 def add_transaction():

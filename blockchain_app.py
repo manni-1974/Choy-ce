@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 import time
 import hashlib
 import json
+import schedule
 import threading
 
 app = Flask(__name__)
@@ -38,15 +39,17 @@ class Block:
 class IFChain:
     difficulty = 2
     transaction_tax_rate = 0.03
-    admin_wallets = {"admin_wallet_address"}
-    
+
     def __init__(self):
         self.unconfirmed_transactions = []
         self.chain = []
-        self.token_supply = {"IFC": 500_000_000}
-        self.frozen_tokens = {}
         self.poh = PoH()
         self.create_genesis_block()
+        self.token_supply = 500_000_000  # Starting total supply of IFC
+        self.frozen_tokens = {}
+        self.burned_tokens = 0
+        self.inflation_rate = 0.0354  # Starting inflation rate for 2025 (3.54%)
+        self.inflation_schedule = self.generate_inflation_schedule()
 
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
@@ -71,8 +74,6 @@ class IFChain:
                 block_hash == block.compute_hash())
 
     def add_new_transaction(self, transaction):
-        if transaction["token"] in self.frozen_tokens and self.frozen_tokens[transaction["token"]]:
-            return False
         tax = transaction['amount'] * IFChain.transaction_tax_rate
         net_amount = transaction['amount'] - tax
         if net_amount < 0:
@@ -107,27 +108,40 @@ class IFChain:
 
     def freeze_token(self, token):
         self.frozen_tokens[token] = True
-        return f"Token {token} has been frozen."
+        return True
 
     def unfreeze_token(self, token):
         if token in self.frozen_tokens and self.frozen_tokens[token]:
             self.frozen_tokens[token] = False
-            return f"Token {token} has been unfrozen."
-        return "Token is not frozen or does not exist."
+            return True
+        return False
 
     def burn_tokens(self, token, amount):
-        if token not in self.token_supply or self.token_supply[token] < amount:
-            return False, "Insufficient supply to burn."
-        self.token_supply[token] -= amount
-        return True, f"{amount} {token} burned."
+        if token not in self.frozen_tokens or self.frozen_tokens[token]:
+            return False
+        if amount > self.token_supply:
+            return False
+        self.token_supply -= amount
+        self.burned_tokens += amount
+        return True
 
-    def mint_tokens(self, admin_address, amount, token="IFC"):
-        if admin_address not in self.admin_wallets:
-            return False, "Unauthorized wallet for minting."
-        if token not in self.token_supply:
-            self.token_supply[token] = 0
-        self.token_supply[token] += amount
-        return True, f"{amount} {token} minted."
+    def mint_tokens(self, token, amount):
+        if token in self.frozen_tokens and self.frozen_tokens[token]:
+            return False
+        self.token_supply += amount
+        return True
+
+    def generate_inflation_schedule(self):
+        years = [2025, 2026, 2027, 2028, 2029, 2030]
+        rates = [0.0354, 0.0301, 0.0256, 0.0218, 0.0185, 0.0157]
+        return dict(zip(years, rates))
+
+    def apply_inflation(self):
+        current_year = int(time.strftime("%Y"))
+        if current_year in self.inflation_schedule:
+            new_tokens = int(self.token_supply * self.inflation_schedule[current_year])
+            self.mint_tokens("IFC", new_tokens)
+            print(f"Minted {new_tokens} IFC for inflation in {current_year}.")
 
 ifchain = IFChain()
 
@@ -164,49 +178,35 @@ def mine():
         return "No transactions to mine", 400
     return f"Block {result} is mined.", 200
 
-@app.route('/poh', methods=['GET'])
-def get_poh_history():
-    return jsonify(ifchain.poh.get_history())
-
 @app.route('/freeze_token', methods=['POST'])
 def freeze_token():
     data = request.get_json()
-    token = data.get("token")
-    return jsonify({"message": ifchain.freeze_token(token)}), 200
+    if ifchain.freeze_token(data['token']):
+        return jsonify({"message": f"{data['token']} is now frozen."}), 200
+    return jsonify({"error": "Token freeze failed."}), 400
 
 @app.route('/unfreeze_token', methods=['POST'])
 def unfreeze_token():
     data = request.get_json()
-    token = data.get("token")
-    return jsonify({"message": ifchain.unfreeze_token(token)}), 200
+    if ifchain.unfreeze_token(data['token']):
+        return jsonify({"message": f"{data['token']} is now unfrozen."}), 200
+    return jsonify({"error": "Token is not frozen or does not exist."}), 400
 
-@app.route('/burn', methods=['POST'])
+@app.route('/burn_tokens', methods=['POST'])
 def burn_tokens():
     data = request.get_json()
-    required_fields = ["token", "amount"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields."}), 400
+    if ifchain.burn_tokens(data['token'], data['amount']):
+        return jsonify({"message": f"{data['amount']} {data['token']} burned."}), 200
+    return jsonify({"error": "Burn failed."}), 400
 
-    success, message = ifchain.burn_tokens(data["token"], data["amount"])
-    if success:
-        return jsonify({"message": message}), 200
-    return jsonify({"error": message}), 400
-
-@app.route('/mint', methods=['POST'])
+@app.route('/mint_tokens', methods=['POST'])
 def mint_tokens():
     data = request.get_json()
-    required_fields = ["admin_address", "amount", "token"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields."}), 400
+    if ifchain.mint_tokens(data['token'], data['amount']):
+        return jsonify({"message": f"{data['amount']} {data['token']} minted."}), 200
+    return jsonify({"error": "Minting failed."}), 400
 
-    success, message = ifchain.mint_tokens(data["admin_address"], data["amount"], data["token"])
-    if success:
-        return jsonify({"message": message}), 200
-    return jsonify({"error": message}), 403
-
-@app.route('/frozen_tokens', methods=['GET'])
-def get_frozen_tokens():
-    return jsonify({"frozen_tokens": ifchain.frozen_tokens})
+schedule.every().year.do(ifchain.apply_inflation)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

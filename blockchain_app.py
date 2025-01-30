@@ -205,6 +205,10 @@ def mint_tokens():
     if ifchain.mint_tokens(data['token'], data['amount']):
         return jsonify({"message": f"{data['amount']} {data['token']} minted."}), 200
     return jsonify({"error": "Minting failed."}), 400
+    
+@app.route('/unconfirmed_transactions', methods=['GET'])
+def get_unconfirmed_transactions():
+    return jsonify({"unconfirmed_transactions": ifchain.unconfirmed_transactions})
 
 schedule.every(365).days.do(ifchain.apply_inflation)
 

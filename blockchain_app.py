@@ -43,9 +43,8 @@ class IFChain:
         self.unconfirmed_transactions = []
         self.chain = []
         self.poh = PoH()
-        self.token_supply = {"IFC": 500_000_000}
-        self.burned_tokens = {}
         self.frozen_tokens = {}
+        self.token_supply = {"IFC": 1000000000}  # Initial supply
         self.create_genesis_block()
 
     def create_genesis_block(self):
@@ -71,8 +70,10 @@ class IFChain:
                 block_hash == block.compute_hash())
 
     def add_new_transaction(self, transaction):
-        if transaction['token'] in self.frozen_tokens and self.frozen_tokens[transaction['token']]:
+        token = transaction.get("token")
+        if token in self.frozen_tokens and self.frozen_tokens[token]:
             return False
+
         tax = transaction['amount'] * IFChain.transaction_tax_rate
         net_amount = transaction['amount'] - tax
         if net_amount < 0:
@@ -105,16 +106,6 @@ class IFChain:
             computed_hash = block.compute_hash()
         return computed_hash
 
-    def burn_token(self, token, amount):
-        if token not in self.token_supply or self.token_supply[token] < amount:
-            return False
-        self.token_supply[token] -= amount
-        if token in self.burned_tokens:
-            self.burned_tokens[token] += amount
-        else:
-            self.burned_tokens[token] = amount
-        return True
-
     def freeze_token(self, token):
         self.frozen_tokens[token] = True
         return True
@@ -122,6 +113,12 @@ class IFChain:
     def unfreeze_token(self, token):
         if token in self.frozen_tokens and self.frozen_tokens[token]:
             self.frozen_tokens[token] = False
+            return True
+        return False
+
+    def burn_tokens(self, token, amount):
+        if token in self.token_supply and self.token_supply[token] >= amount:
+            self.token_supply[token] -= amount
             return True
         return False
 
@@ -164,40 +161,39 @@ def mine():
 def get_poh_history():
     return jsonify(ifchain.poh.get_history())
 
-@app.route('/burn_token', methods=['POST'])
-def burn_token():
-    data = request.get_json()
-    if 'token' not in data or 'amount' not in data:
-        return jsonify({"error": "Invalid request"}), 400
-    if ifchain.burn_token(data['token'], data['amount']):
-        return jsonify({"message": f"{data['amount']} {data['token']} burned."}), 200
-    return jsonify({"error": "Invalid token or insufficient balance."}), 400
-
-@app.route('/burned_tokens', methods=['GET'])
-def get_burned_tokens():
-    return jsonify({"burned_tokens": ifchain.burned_tokens})
-
 @app.route('/freeze_token', methods=['POST'])
 def freeze_token():
     data = request.get_json()
-    if 'token' not in data:
-        return jsonify({"error": "Invalid request"}), 400
-    if ifchain.freeze_token(data['token']):
-        return jsonify({"message": f"Token {data['token']} has been frozen."}), 200
-    return jsonify({"error": "Token freezing failed."}), 400
+    token = data.get("token")
+    if token:
+        ifchain.freeze_token(token)
+        return jsonify({"message": f"Token {token} has been frozen."}), 200
+    return jsonify({"error": "Invalid token data"}), 400
 
 @app.route('/unfreeze_token', methods=['POST'])
 def unfreeze_token():
     data = request.get_json()
-    if 'token' not in data:
-        return jsonify({"error": "Invalid request"}), 400
-    if ifchain.unfreeze_token(data['token']):
-        return jsonify({"message": f"Token {data['token']} has been unfrozen."}), 200
+    token = data.get("token")
+    if token and ifchain.unfreeze_token(token):
+        return jsonify({"message": f"Token {token} has been unfrozen."}), 200
     return jsonify({"error": "Token is not frozen or does not exist."}), 400
 
 @app.route('/frozen_tokens', methods=['GET'])
 def get_frozen_tokens():
     return jsonify({"frozen_tokens": ifchain.frozen_tokens})
+
+@app.route('/burn_token', methods=['POST'])
+def burn_token():
+    data = request.get_json()
+    token = data.get("token")
+    amount = data.get("amount")
+    if token and isinstance(amount, (int, float)) and ifchain.burn_tokens(token, amount):
+        return jsonify({"message": f"{amount} {token} burned."}), 200
+    return jsonify({"error": "Invalid token data or insufficient supply."}), 400
+
+@app.route('/unconfirmed_transactions', methods=['GET'])
+def get_unconfirmed_transactions():
+    return jsonify({"unconfirmed_transactions": ifchain.unconfirmed_transactions})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

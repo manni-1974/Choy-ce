@@ -154,6 +154,9 @@ class IFChain:
             return True
         return False
 
+    def get_total_supply(self):
+        return self.token_supply
+
 ifchain = IFChain()
 
 def poh_generator():
@@ -223,6 +226,10 @@ def mint_tokens():
     if ifchain.mint_tokens(data['token'], data['amount']):
         return jsonify({"message": f"{data['amount']} {data['token']} minted."}), 200
     return jsonify({"error": "Minting failed."}), 400
+
+@app.route('/total_supply', methods=['GET'])
+def get_total_supply():
+    return jsonify({"total_supply": ifchain.get_total_supply()})
 
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():

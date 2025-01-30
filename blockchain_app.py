@@ -45,10 +45,9 @@ class IFChain:
         self.chain = []
         self.poh = PoH()
         self.create_genesis_block()
-        self.token_supply = 500_000_000  # Starting total supply of IFC
+        self.token_supply = 500_000_000
         self.frozen_tokens = {}
         self.burned_tokens = 0
-        self.inflation_rate = 0.0354  # Starting inflation rate for 2025 (3.54%)
         self.inflation_schedule = self.generate_inflation_schedule()
 
     def create_genesis_block(self):
@@ -74,6 +73,9 @@ class IFChain:
                 block_hash == block.compute_hash())
 
     def add_new_transaction(self, transaction):
+        if transaction["token"] in self.frozen_tokens and self.frozen_tokens[transaction["token"]]:
+            return False
+
         tax = transaction['amount'] * IFChain.transaction_tax_rate
         net_amount = transaction['amount'] - tax
         if net_amount < 0:
@@ -132,9 +134,14 @@ class IFChain:
         return True
 
     def generate_inflation_schedule(self):
-        years = [2025, 2026, 2027, 2028, 2029, 2030]
-        rates = [0.0354, 0.0301, 0.0256, 0.0218, 0.0185, 0.0157]
-        return dict(zip(years, rates))
+        return {
+            2025: 0.0354,
+            2026: 0.0301,
+            2027: 0.0256,
+            2028: 0.0218,
+            2029: 0.0185,
+            2030: 0.0157,
+        }
 
     def apply_inflation(self):
         current_year = int(time.strftime("%Y"))
@@ -153,6 +160,8 @@ def poh_generator():
 poh_thread = threading.Thread(target=poh_generator, daemon=True)
 poh_thread.start()
 
+schedule.every(365).days.do(ifchain.apply_inflation)
+
 @app.route('/chain', methods=['GET'])
 def get_chain():
     chain_data = []
@@ -168,8 +177,7 @@ def add_transaction():
         return "Invalid transaction data", 400
     if ifchain.add_new_transaction(tx_data):
         return "Transaction added to the pool", 201
-    else:
-        return "Transaction invalid", 400
+    return "Transaction invalid", 400
 
 @app.route('/mine', methods=['GET'])
 def mine():
@@ -205,12 +213,10 @@ def mint_tokens():
     if ifchain.mint_tokens(data['token'], data['amount']):
         return jsonify({"message": f"{data['amount']} {data['token']} minted."}), 200
     return jsonify({"error": "Minting failed."}), 400
-    
+
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():
     return jsonify({"unconfirmed_transactions": ifchain.unconfirmed_transactions})
-
-schedule.every(365).days.do(ifchain.apply_inflation)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

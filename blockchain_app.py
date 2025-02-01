@@ -163,11 +163,11 @@ class IFChain:
         return self.token_supply
         
     def deploy_contract(self, contract_name, contract_code):
-    """Deploy a new smart contract."""
-    if contract_name in self.contracts:
-        return False
-    self.contracts[contract_name] = {"code": contract_code, "state": {}}
-    return True
+        """Deploy a new smart contract."""
+        if contract_name in self.contracts:
+            return False
+        self.contracts[contract_name] = {"code": contract_code, "state": {}}
+        return True
 
     def execute_contract(self, contract_name, function_name, params):
         """Execute an existing smart contract function safely."""

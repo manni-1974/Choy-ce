@@ -161,6 +161,26 @@ class IFChain:
 
     def get_total_supply(self):
         return self.token_supply
+        
+    def deploy_contract(self, contract_name, contract_code):
+        """Deploy a new smart contract."""
+        if contract_name in self.contracts:
+            return False
+        self.contracts[contract_name] = {"code": contract_code}
+        return True
+
+    def execute_contract(self, contract_name, function_name, params):
+        """Execute an existing smart contract function safely."""
+        if contract_name not in self.contracts:
+            return False
+        contract_code = self.contracts[contract_name]["code"]
+        
+        local_scope = {}
+        exec(contract_code, {}, local_scope)
+
+        if function_name in local_scope and callable(local_scope[function_name]):
+            return local_scope[function_name](**params)
+        return False
 
 ifchain = IFChain()
 
@@ -236,9 +256,7 @@ def mint_tokens():
 def get_total_supply():
     return jsonify({"total_supply": ifchain.get_total_supply()})
     
-@app.route('/deploy_contract', methods=['POST'])
 def api_deploy_contract():
-    """API endpoint to deploy a smart contract."""
     data = request.get_json()
     if "contract_name" not in data or "contract_code" not in data:
         return jsonify({"error": "Missing contract name or code"}), 400
@@ -248,7 +266,6 @@ def api_deploy_contract():
 
 @app.route('/execute_contract', methods=['POST'])
 def api_execute_contract():
-    """API endpoint to execute a contract function."""
     data = request.get_json()
     if "contract_name" not in data or "function_name" not in data or "params" not in data:
         return jsonify({"error": "Missing contract execution details"}), 400

@@ -51,7 +51,7 @@ class IFChain:
         self.inflation_schedule = self.generate_inflation_schedule()
         self.applied_inflation_years = set()
         self.minted_tokens = {}
-        self.contacts = {}
+        self.contracts = {}
 
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
@@ -138,24 +138,7 @@ class IFChain:
         self.minted_tokens[token] += amount
         self.token_supply += amount
         return True
-        
-    def deploy_contract(self, contract_name, contract_code):
-        """Deploy a new smart contract."""
-        if contract_name in self.contracts:
-            return False
-        self.contracts[contract_name] = {"code": contract_code, "state": {}}
-        return True
-        
-    def execute_contract(self, contract_name, function_name, params):
-        """Execute an existing smart contract function."""
-        if contract_name not in self.contracts:
-            return False
-        contract = self.contracts[contract_name]
-        if function_name not in contract["code"]:
-            return False  # Function does not exist
-        exec(contract["code"][function_name], {}, contract["state"])
-        return True
-        
+    
     def generate_inflation_schedule(self):
         return {
             2025: 0.0354,

@@ -51,6 +51,7 @@ class IFChain:
         self.inflation_schedule = self.generate_inflation_schedule()
         self.applied_inflation_years = set()
         self.minted_tokens = {}
+        self.contacts = {}
 
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
@@ -137,7 +138,24 @@ class IFChain:
         self.minted_tokens[token] += amount
         self.token_supply += amount
         return True
-
+        
+    def deploy_contract(self, contract_name, contract_code):
+        """Deploy a new smart contract."""
+        if contract_name in self.contracts:
+            return False
+        self.contracts[contract_name] = {"code": contract_code, "state": {}}
+        return True
+        
+    def execute_contract(self, contract_name, function_name, params):
+        """Execute an existing smart contract function."""
+        if contract_name not in self.contracts:
+            return False
+        contract = self.contracts[contract_name]
+        if function_name not in contract["code"]:
+            return False  # Function does not exist
+        exec(contract["code"][function_name], {}, contract["state"])
+        return True
+        
     def generate_inflation_schedule(self):
         return {
             2025: 0.0354,
@@ -230,11 +248,31 @@ def mint_tokens():
     if ifchain.mint_tokens(data['token'], data['amount']):
         return jsonify({"message": f"{data['amount']} {data['token']} minted."}), 200
     return jsonify({"error": "Minting failed."}), 400
-
+           
 @app.route('/total_supply', methods=['GET'])
 def get_total_supply():
     return jsonify({"total_supply": ifchain.get_total_supply()})
+    
+@app.route('/deploy_contract', methods=['POST'])
+def api_deploy_contract():
+    """API endpoint to deploy a smart contract."""
+    data = request.get_json()
+    if "contract_name" not in data or "contract_code" not in data:
+        return jsonify({"error": "Missing contract name or code"}), 400
+    if ifchain.deploy_contract(data["contract_name"], data["contract_code"]):
+        return jsonify({"message": f"Contract {data['contract_name']} deployed."}), 200
+    return jsonify({"error": "Contract deployment failed."}), 400
 
+@app.route('/execute_contract', methods=['POST'])
+def api_execute_contract():
+    """API endpoint to execute a contract function."""
+    data = request.get_json()
+    if "contract_name" not in data or "function_name" not in data or "params" not in data:
+        return jsonify({"error": "Missing contract execution details"}), 400
+    if ifchain.execute_contract(data["contract_name"], data["function_name"], data["params"]):
+        return jsonify({"message": f"Function {data['function_name']} executed in {data['contract_name']}."}), 200
+    return jsonify({"error": "Contract execution failed."}), 400
+    
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():
     return jsonify({"unconfirmed_transactions": ifchain.unconfirmed_transactions})

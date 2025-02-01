@@ -50,6 +50,7 @@ class IFChain:
         self.burned_tokens = 0
         self.inflation_schedule = self.generate_inflation_schedule()
         self.applied_inflation_years = set()
+        self.minted_tokens = {}
 
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
@@ -131,6 +132,9 @@ class IFChain:
     def mint_tokens(self, token, amount):
         if token in self.frozen_tokens and self.frozen_tokens[token]:
             return False
+        if token not in self.minted_tokens:
+            self.minted_tokens[token] = 0
+        self.minted_tokens[token] += amount
         self.token_supply += amount
         return True
 

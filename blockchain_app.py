@@ -163,11 +163,11 @@ class IFChain:
         return self.token_supply
         
     def deploy_contract(self, contract_name, contract_code):
-        """Deploy a new smart contract."""
-        if contract_name in self.contracts:
-            return False
-        self.contracts[contract_name] = {"code": contract_code}
-        return True
+    """Deploy a new smart contract."""
+    if contract_name in self.contracts:
+        return False
+    self.contracts[contract_name] = {"code": contract_code, "state": {}}
+    return True
 
     def execute_contract(self, contract_name, function_name, params):
         """Execute an existing smart contract function safely."""
@@ -256,12 +256,16 @@ def mint_tokens():
 def get_total_supply():
     return jsonify({"total_supply": ifchain.get_total_supply()})
     
+@app.route('/deploy_contract', methods=['POST'])
 def api_deploy_contract():
+    """API endpoint to deploy a smart contract."""
     data = request.get_json()
     if "contract_name" not in data or "contract_code" not in data:
         return jsonify({"error": "Missing contract name or code"}), 400
+
     if ifchain.deploy_contract(data["contract_name"], data["contract_code"]):
         return jsonify({"message": f"Contract {data['contract_name']} deployed."}), 200
+
     return jsonify({"error": "Contract deployment failed."}), 400
 
 @app.route('/execute_contract', methods=['POST'])

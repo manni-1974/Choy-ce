@@ -167,12 +167,17 @@ class IFChain:
         return self.token_supply
         
     def deploy_contract(self, contract_name, contract_code):
-        """Deploy a new smart contract."""
+        """Deploy a new smart contract with a global state variable."""
         if contract_name in self.contracts:
-            return False
-        
-        self.contracts[contract_name] = {"code": contract_code, "state": {}}
-        self.save_contract_state()
+            return False  
+
+        wrapped_code = f"global state\nstate = {{}}\n{contract_code}"
+
+        self.contracts[contract_name] = {
+            "code": wrapped_code,
+            "state": {},
+            "state_versions": []
+        }
         return True
 
     def execute_contract(self, contract_name, function_name, params):

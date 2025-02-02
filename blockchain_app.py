@@ -182,7 +182,7 @@ class IFChain:
         contract_state = self.contracts[contract_name]["state"]
 
         local_scope = {"state": contract_state}
-        exec(contract_code, {}, local_scope)
+        exec(contract_code, local_scope)
 
         if function_name in local_scope and callable(local_scope[function_name]):
             result = local_scope[function_name](**params)

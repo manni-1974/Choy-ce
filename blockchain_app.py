@@ -40,7 +40,6 @@ class Block:
 class IFChain:
     difficulty = 2
     transaction_tax_rate = 0.03
-    CONTRACT_STATE_FILE = "contract_states.json"
     
     def __init__(self):
         self.unconfirmed_transactions = []

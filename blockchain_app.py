@@ -42,6 +42,7 @@ class IFChain:
     transaction_tax_rate = 0.03
     
     def __init__(self):
+        self.CONTRACT_STATE_FILE = "contract_states.json"
         self.unconfirmed_transactions = []
         self.chain = []
         self.poh = PoH()
@@ -192,13 +193,13 @@ class IFChain:
     
     def save_contract_state(self):
         """Save all smart contract states to a file for persistence."""
-        with open(CONTRACT_STATE_FILE, "w") as f:
+        with open(self.CONTRACT_STATE_FILE, "w") as f:
             json.dump(self.contracts, f)
 
     def load_contract_state(self):
         """Load contract states from a file when the blockchain starts."""
-        if os.path.exists(CONTRACT_STATE_FILE):
-            with open(CONTRACT_STATE_FILE, "r") as f:
+        if os.path.exists(self.CONTRACT_STATE_FILE):
+            with open(self.CONTRACT_STATE_FILE, "r") as f:
                 self.contracts = json.load(f)
         else:
             self.contracts = {}

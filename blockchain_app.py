@@ -323,6 +323,15 @@ def get_contract_state(contract_name):
 def get_all_contracts():
     """Fetch a list of all deployed smart contracts."""
     return jsonify({"contracts": list(ifchain.contracts.keys())}), 200
-    
+  
+@app.route('/contract/<contract_name>', methods=['DELETE'])
+def delete_contract(contract_name):
+    """Delete a specific smart contract."""
+    if contract_name in ifchain.contracts:
+        del ifchain.contracts[contract_name]  # Remove the contract from storage
+        ifchain.save_contract_state()  # Save updated contract state
+        return jsonify({"message": f"Contract {contract_name} deleted."}), 200
+    return jsonify({"error": "Contract not found"}), 404
+  
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

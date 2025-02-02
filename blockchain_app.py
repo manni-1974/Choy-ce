@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 import time
 import hashlib
 import json
+import os
 import schedule
 import threading
 
@@ -52,7 +53,8 @@ class IFChain:
         self.applied_inflation_years = set()
         self.minted_tokens = {}
         self.contracts = {}
-
+        self.load_contract_state()
+        
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
         genesis_block.hash = genesis_block.compute_hash()
@@ -170,18 +172,37 @@ class IFChain:
         return True
 
     def execute_contract(self, contract_name, function_name, params):
-        """Execute an existing smart contract function safely."""
-        if contract_name not in self.contracts:
-            return False
-        contract_code = self.contracts[contract_name]["code"]
-        
-        local_scope = {}
-        exec(contract_code, {}, local_scope)
-
-        if function_name in local_scope and callable(local_scope[function_name]):
-            return local_scope[function_name](**params)
+    """Execute an existing smart contract function safely and persist state."""
+    if contract_name not in self.contracts:
         return False
 
+    contract_code = self.contracts[contract_name]["code"]
+    contract_state = self.contracts[contract_name]["state"]
+
+    local_scope = {"state": contract_state}  # Contract can access its state
+    exec(contract_code, {}, local_scope)
+
+    if function_name in local_scope and callable(local_scope[function_name]):
+        result = local_scope[function_name](**params)
+        self.contracts[contract_name]["state"] = local_scope["state"]
+        self.save_contract_state()
+        return result
+
+    return False
+    
+    def save_contract_state(self):
+        """Save all smart contract states to a file for persistence."""
+        with open(CONTRACT_STATE_FILE, "w") as f:
+            json.dump(self.contracts, f)
+
+    def load_contract_state(self):
+        """Load contract states from a file when the blockchain starts."""
+        if os.path.exists(CONTRACT_STATE_FILE):
+            with open(CONTRACT_STATE_FILE, "r") as f:
+                self.contracts = json.load(f)
+        else:
+            self.contracts = {}
+            
 ifchain = IFChain()
 
 def poh_generator():

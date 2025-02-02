@@ -304,7 +304,29 @@ def api_execute_contract():
     if ifchain.execute_contract(data["contract_name"], data["function_name"], data["params"]):
         return jsonify({"message": f"Function {data['function_name']} executed in {data['contract_name']}."}), 200
     return jsonify({"error": "Contract execution failed."}), 400
-    
+ 
+@app.route('/update_contract', methods=['PUT'])
+def update_contract():
+    """Update an existing smart contract with new code while preserving state."""
+    data = request.get_json()
+
+    if "contract_name" not in data or "new_code" not in data:
+        return jsonify({"error": "Missing contract name or new code"}), 400
+
+    contract_name = data["contract_name"]
+    new_code = data["new_code"]
+
+    if contract_name not in ifchain.contracts:
+        return jsonify({"error": "Contract not found"}), 404
+
+    existing_state = ifchain.contracts[contract_name]["state"]
+
+    ifchain.contracts[contract_name] = {"code": new_code, "state": existing_state}
+
+    ifchain.save_contract_state()
+
+    return jsonify({"message": f"Contract {contract_name} updated successfully."}), 200
+
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():
     return jsonify({"unconfirmed_transactions": ifchain.unconfirmed_transactions})

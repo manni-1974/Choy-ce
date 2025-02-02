@@ -309,5 +309,15 @@ def api_execute_contract():
 def get_unconfirmed_transactions():
     return jsonify({"unconfirmed_transactions": ifchain.unconfirmed_transactions})
 
+@app.route('/contract_state/<contract_name>', methods=['GET'])
+def get_contract_state(contract_name):
+    """Fetch the state of a specific smart contract."""
+    if contract_name in ifchain.contracts:
+        return jsonify({
+            "contract_name": contract_name,
+            "state": ifchain.contracts[contract_name]["state"]
+        }), 200
+    return jsonify({"error": "Contract not found"}), 404
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

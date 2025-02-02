@@ -5,6 +5,7 @@ import json
 import os
 import schedule
 import threading
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -352,11 +353,21 @@ def get_contract_state(contract_name):
     
 @app.route('/contract_versions/<contract_name>', methods=['GET'])
 def get_contract_versions(contract_name):
-    """Fetch the version history of a specific smart contract."""
+    """Fetch the version history of a specific smart contract with formatted timestamps."""
     if contract_name in ifchain.contracts and "versions" in ifchain.contracts[contract_name]:
+        versions = ifchain.contracts[contract_name]["versions"]
+        
+        formatted_versions = [
+            {
+                "code": v["code"],
+                "timestamp": datetime.utcfromtimestamp(v["timestamp"]).strftime("%Y-%m-%d %H:%M:%S UTC")
+            }
+            for v in versions
+        ]
+    
         return jsonify({
             "contract_name": contract_name,
-            "versions": ifchain.contracts[contract_name]["versions"]
+            "versions": formatted_versions
         }), 200
     return jsonify({"error": "No version history found for this contract"}), 404
     

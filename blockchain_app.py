@@ -307,7 +307,7 @@ def api_execute_contract():
  
 @app.route('/update_contract', methods=['PUT'])
 def update_contract():
-    """Update an existing smart contract with new code while preserving state."""
+    """Update an existing smart contract with new code while preserving state and version history."""
     data = request.get_json()
 
     if "contract_name" not in data or "new_code" not in data:
@@ -321,12 +321,21 @@ def update_contract():
 
     existing_state = ifchain.contracts[contract_name]["state"]
 
-    ifchain.contracts[contract_name] = {"code": new_code, "state": existing_state}
+    if "versions" not in ifchain.contracts[contract_name]:
+        ifchain.contracts[contract_name]["versions"] = []
+
+    ifchain.contracts[contract_name]["versions"].append({
+        "code": ifchain.contracts[contract_name]["code"],  
+        "timestamp": time.time()  # Store update time
+    })
+
+    ifchain.contracts[contract_name]["code"] = new_code
+    ifchain.contracts[contract_name]["state"] = existing_state
 
     ifchain.save_contract_state()
 
-    return jsonify({"message": f"Contract {contract_name} updated successfully."}), 200
-
+    return jsonify({"message": f"Contract {contract_name} updated successfully with version history."}), 200
+    
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():
     return jsonify({"unconfirmed_transactions": ifchain.unconfirmed_transactions})
@@ -340,6 +349,16 @@ def get_contract_state(contract_name):
             "state": ifchain.contracts[contract_name]["state"]
         }), 200
     return jsonify({"error": "Contract not found"}), 404
+    
+@app.route('/contract_versions/<contract_name>', methods=['GET'])
+def get_contract_versions(contract_name):
+    """Fetch the version history of a specific smart contract."""
+    if contract_name in ifchain.contracts and "versions" in ifchain.contracts[contract_name]:
+        return jsonify({
+            "contract_name": contract_name,
+            "versions": ifchain.contracts[contract_name]["versions"]
+        }), 200
+    return jsonify({"error": "No version history found for this contract"}), 404
     
 @app.route('/contracts', methods=['GET'])
 def get_all_contracts():

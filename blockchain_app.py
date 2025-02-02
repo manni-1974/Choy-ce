@@ -169,6 +169,7 @@ class IFChain:
         """Deploy a new smart contract."""
         if contract_name in self.contracts:
             return False
+        
         self.contracts[contract_name] = {"code": contract_code, "state": {}}
         return True
 

@@ -176,19 +176,19 @@ class IFChain:
         if contract_name not in self.contracts:
             return False
 
-    contract_code = self.contracts[contract_name]["code"]
-    contract_state = self.contracts[contract_name]["state"]
+        contract_code = self.contracts[contract_name]["code"]
+        contract_state = self.contracts[contract_name]["state"]
 
-    local_scope = {"state": contract_state}  
-    exec(contract_code, {}, local_scope)
+        local_scope = {"state": contract_state}
+        exec(contract_code, {}, local_scope)
 
-    if function_name in local_scope and callable(local_scope[function_name]):
-        result = local_scope[function_name](**params)
-        self.contracts[contract_name]["state"] = local_scope["state"]
-        self.save_contract_state()
-        return result
+        if function_name in local_scope and callable(local_scope[function_name]):
+            result = local_scope[function_name](**params)
+            self.contracts[contract_name]["state"] = local_scope["state"]
+            self.save_contract_state()
+            return result
 
-    return False
+        return False
     
     def save_contract_state(self):
         """Save all smart contract states to a file for persistence."""

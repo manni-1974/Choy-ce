@@ -176,20 +176,33 @@ class IFChain:
         return True
 
     def execute_contract(self, contract_name, function_name, params):
-        """Execute an existing smart contract function safely and persist state."""
+        """Execute an existing smart contract function safely and log executions."""
         if contract_name not in self.contracts:
             return False
 
         contract_code = self.contracts[contract_name]["code"]
         contract_state = self.contracts[contract_name]["state"]
 
+    
         local_scope = {"state": contract_state}
-        exec(contract_code, local_scope)
+        exec(contract_code, {}, local_scope)
 
         if function_name in local_scope and callable(local_scope[function_name]):
             result = local_scope[function_name](**params)
+
+            if "logs" not in self.contracts[contract_name]:
+                self.contracts[contract_name]["logs"] = []
+
+            self.contracts[contract_name]["logs"].append({
+                "function": function_name,
+                "params": params,
+                "result": result,
+                "timestamp": time.time()
+            })
+
             self.contracts[contract_name]["state"] = local_scope["state"]
-            self.save_contract_state()
+            self.save_contract_state()  # Save updates
+
             return result
 
         return False
@@ -287,16 +300,25 @@ def get_total_supply():
     
 @app.route('/deploy_contract', methods=['POST'])
 def api_deploy_contract():
-    """API endpoint to deploy a smart contract."""
+    """API endpoint to deploy a smart contract with an initialized state."""
     data = request.get_json()
+
     if "contract_name" not in data or "contract_code" not in data:
         return jsonify({"error": "Missing contract name or code"}), 400
 
-    if ifchain.deploy_contract(data["contract_name"], data["contract_code"]):
-        return jsonify({"message": f"Contract {data['contract_name']} deployed."}), 200
+    contract_name = data["contract_name"]
+    contract_code = data["contract_code"]
+
+    if contract_name in ifchain.contracts:
+        return jsonify({"error": f"Contract {contract_name} already exists."}), 400
+
+    contract_code = f"global state\nstate = {{}}\n{contract_code}"
+
+    if ifchain.deploy_contract(contract_name, contract_code):
+        return jsonify({"message": f"Contract {contract_name} deployed successfully."}), 200
 
     return jsonify({"error": "Contract deployment failed."}), 400
-
+    
 @app.route('/execute_contract', methods=['POST'])
 def api_execute_contract():
     data = request.get_json()
@@ -371,6 +393,16 @@ def get_contract_versions(contract_name):
         }), 200
     return jsonify({"error": "No version history found for this contract"}), 404
     
+@app.route('/contract_logs/<contract_name>', methods=['GET'])
+def get_contract_logs(contract_name):
+    """Fetch execution logs of a specific contract."""
+    if contract_name in ifchain.contracts and "logs" in ifchain.contracts[contract_name]:
+        return jsonify({
+            "contract_name": contract_name,
+            "logs": ifchain.contracts[contract_name]["logs"]
+        }), 200
+    return jsonify({"error": "No logs found for this contract"}), 404
+    
 @app.route('/contracts', methods=['GET'])
 def get_all_contracts():
     """Fetch a list of all deployed smart contracts."""
@@ -384,6 +416,21 @@ def delete_contract(contract_name):
         ifchain.save_contract_state()  # Save updated contract state
         return jsonify({"message": f"Contract {contract_name} deleted."}), 200
     return jsonify({"error": "Contract not found"}), 404
+  
+@app.route('/block/<int:index>', methods=['GET'])
+def get_block(index):
+    """Fetch details of a specific block by index."""
+    if index < len(ifchain.chain):
+        return jsonify(ifchain.chain[index].__dict__), 200
+    return jsonify({"error": "Block not found"}), 404
+    
+@app.route('/transactions', methods=['GET'])
+def get_all_transactions():
+    """Fetch all transactions from the blockchain."""
+    transactions = []
+    for block in ifchain.chain:
+        transactions.extend(block.transactions)
+    return jsonify({"transactions": transactions}), 200
   
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

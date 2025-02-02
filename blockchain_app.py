@@ -176,29 +176,26 @@ class IFChain:
         return True
 
     def execute_contract(self, contract_name, function_name, params):
-        """Execute an existing smart contract function safely and log executions."""
+        """Execute an existing smart contract function safely and log state versions."""
         if contract_name not in self.contracts:
             return False
 
         contract_code = self.contracts[contract_name]["code"]
         contract_state = self.contracts[contract_name]["state"]
 
-    
+        if "state_versions" not in self.contracts[contract_name]:
+            self.contracts[contract_name]["state_versions"] = []
+
+        self.contracts[contract_name]["state_versions"].append({
+            "timestamp": time.time(),
+            "state": contract_state.copy()  # Store a copy of the state
+        })
+
         local_scope = {"state": contract_state}
         exec(contract_code, {}, local_scope)
 
         if function_name in local_scope and callable(local_scope[function_name]):
             result = local_scope[function_name](**params)
-
-            if "logs" not in self.contracts[contract_name]:
-                self.contracts[contract_name]["logs"] = []
-
-            self.contracts[contract_name]["logs"].append({
-                "function": function_name,
-                "params": params,
-                "result": result,
-                "timestamp": time.time()
-            })
 
             self.contracts[contract_name]["state"] = local_scope["state"]
             self.save_contract_state()  # Save updates
@@ -375,23 +372,20 @@ def get_contract_state(contract_name):
     
 @app.route('/contract_versions/<contract_name>', methods=['GET'])
 def get_contract_versions(contract_name):
-    """Fetch the version history of a specific smart contract with formatted timestamps."""
-    if contract_name in ifchain.contracts and "versions" in ifchain.contracts[contract_name]:
-        versions = ifchain.contracts[contract_name]["versions"]
-        
-        formatted_versions = [
+    """Retrieve all past states of a contract with formatted timestamps."""
+    if contract_name in ifchain.contracts and "state_versions" in ifchain.contracts[contract_name]:
+        versions = [
             {
-                "code": v["code"],
-                "timestamp": datetime.utcfromtimestamp(v["timestamp"]).strftime("%Y-%m-%d %H:%M:%S UTC")
+                "timestamp": datetime.utcfromtimestamp(v["timestamp"]).strftime('%Y-%m-%d %H:%M:%S'),
+                "state": v["state"]
             }
-            for v in versions
+            for v in ifchain.contracts[contract_name]["state_versions"]
         ]
-    
         return jsonify({
             "contract_name": contract_name,
-            "versions": formatted_versions
+            "versions": versions
         }), 200
-    return jsonify({"error": "No version history found for this contract"}), 404
+    return jsonify({"error": "No versions found for this contract"}), 404
     
 @app.route('/contract_logs/<contract_name>', methods=['GET'])
 def get_contract_logs(contract_name):
@@ -431,6 +425,32 @@ def get_all_transactions():
     for block in ifchain.chain:
         transactions.extend(block.transactions)
     return jsonify({"transactions": transactions}), 200
-  
+    
+@app.route('/transactions/<wallet_address>', methods=['GET'])
+def get_transactions(wallet_address):
+    """Retrieve transactions involving a specific wallet address."""
+    transactions = [
+        tx for block in ifchain.chain for tx in block.transactions
+        if tx["sender"] == wallet_address or tx["receiver"] == wallet_address
+    ]
+    return jsonify({"wallet_address": wallet_address, "transactions": transactions}), 200
+    
+@app.route('/wallet_balance/<wallet_address>', methods=['GET'])
+def get_wallet_balance(wallet_address):
+    """Retrieve the balance of tokens for a specific wallet."""
+    balance = {}
+    
+    for block in ifchain.chain:
+        for tx in block.transactions:
+            token = tx["token"]
+            amount = tx["net_amount"]
+            
+            if tx["receiver"] == wallet_address:
+                balance[token] = balance.get(token, 0) + amount
+            if tx["sender"] == wallet_address:
+                balance[token] = balance.get(token, 0) - amount
+
+    return jsonify({"wallet_address": wallet_address, "balance": balance}), 200
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

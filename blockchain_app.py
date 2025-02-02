@@ -319,5 +319,10 @@ def get_contract_state(contract_name):
         }), 200
     return jsonify({"error": "Contract not found"}), 404
     
+@app.route('/contracts', methods=['GET'])
+def get_all_contracts():
+    """Fetch a list of all deployed smart contracts."""
+    return jsonify({"contracts": list(ifchain.contracts.keys())}), 200
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

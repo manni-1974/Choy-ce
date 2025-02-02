@@ -171,6 +171,7 @@ class IFChain:
             return False
         
         self.contracts[contract_name] = {"code": contract_code, "state": {}}
+        self.save_contract_state()
         return True
 
     def execute_contract(self, contract_name, function_name, params):

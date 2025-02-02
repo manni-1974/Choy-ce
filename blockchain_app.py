@@ -222,7 +222,11 @@ def get_chain():
     chain_data = []
     for block in ifchain.chain:
         chain_data.append(block.__dict__)
-    return jsonify({"length": len(chain_data), "chain": chain_data})
+    return jsonify({
+        "length": len(chain_data),
+        "chain": chain_data,
+        "contracts": ifchain.contracts  
+    })
 
 @app.route('/apply_inflation', methods=['POST'])
 def trigger_inflation():

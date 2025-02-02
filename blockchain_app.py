@@ -172,8 +172,8 @@ class IFChain:
         return True
 
     def execute_contract(self, contract_name, function_name, params):
-    """Execute an existing smart contract function safely and persist state."""
-    if contract_name not in self.contracts:
+        """Execute an existing smart contract function safely and persist state."""
+        if contract_name not in self.contracts:
         return False
 
     contract_code = self.contracts[contract_name]["code"]

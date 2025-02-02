@@ -179,7 +179,7 @@ class IFChain:
     contract_code = self.contracts[contract_name]["code"]
     contract_state = self.contracts[contract_name]["state"]
 
-    local_scope = {"state": contract_state}  # Contract can access its state
+    local_scope = {"state": contract_state}  
     exec(contract_code, {}, local_scope)
 
     if function_name in local_scope and callable(local_scope[function_name]):

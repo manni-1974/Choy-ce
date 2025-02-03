@@ -696,6 +696,14 @@ def debug_hashes():
             "computed_hash": block.compute_hash()
         })
     return jsonify(hashes), 200
+    
+@app.route('/pending_transactions', methods=['GET'])
+def get_pending_transactions():
+    """Retrieve the list of unconfirmed transactions waiting to be mined."""
+    return jsonify({
+        "total_pending": len(ifchain.unconfirmed_transactions),
+        "pending_transactions": ifchain.unconfirmed_transactions
+    }), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

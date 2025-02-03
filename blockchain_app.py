@@ -267,6 +267,17 @@ class IFChain:
         self.unconfirmed_transactions = []
 
         return f"Block {new_block.index} is mined and contains {len(transactions_to_add)} transactions."
+        
+    def get_wallet_balance(self, wallet_address):
+        """Retrieve the balance of a given wallet by summing all transactions."""
+        balance = 0
+        for block in self.chain:
+            for tx in block.transactions:
+                if tx["receiver"] == wallet_address:
+                    balance += tx["net_amount"]  # Add received amount
+                if tx["sender"] == wallet_address:
+                    balance -= tx["amount"]  # Deduct sent amount
+        return balance
             
 ifchain = IFChain()
 

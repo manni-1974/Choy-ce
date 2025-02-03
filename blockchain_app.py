@@ -495,42 +495,6 @@ def search_transactions():
         "transactions": matching_transactions
     }), 200
     
-@app.route('/search_transactions_advanced', methods=['GET'])
-def search_transactions_advanced():
-    """Search transactions by sender, receiver, token, block number, or time range."""
-    sender = request.args.get('sender')
-    receiver = request.args.get('receiver')
-    token = request.args.get('token')
-    block_number = request.args.get('block_number', type=int)
-    start_time = request.args.get('start_time')  # Expecting YYYY-MM-DD HH:MM:SS
-    end_time = request.args.get('end_time')
-
-    matching_transactions = []
-
-    for block in ifchain.chain:
-        if block_number is not None and block.index != block_number:
-            continue
-
-        block_time = datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
-
-        if start_time and block_time < start_time:
-            continue
-        if end_time and block_time > end_time:
-            continue
-
-        for tx in block.transactions:
-            if ((not sender or tx["sender"] == sender) and
-                (not receiver or tx["receiver"] == receiver) and
-                (not token or tx["token"] == token)):
-                matching_transactions.append({
-                    **tx, "block_index": block.index, "timestamp": block_time
-                })
-
-    return jsonify({
-        "total_matches": len(matching_transactions),
-        "transactions": matching_transactions
-    }), 200
-    
 @app.route('/search_transaction_by_hash', methods=['GET'])
 def search_transaction_by_hash():
     """Search for a transaction using its unique hash."""
@@ -549,6 +513,109 @@ def search_transaction_by_hash():
                 }), 200
 
     return jsonify({"error": "Transaction not found"}), 404
+    
+@app.route('/search_transactions_by_date', methods=['GET'])
+def search_transactions_by_date():
+    """Search for transactions within a date range."""
+    start_date = request.args.get('start_date')  # Expected format: YYYY-MM-DD
+    end_date = request.args.get('end_date')  # Expected format: YYYY-MM-DD
+
+    if not start_date or not end_date:
+        return jsonify({"error": "Both start_date and end_date are required"}), 400
+
+    try:
+        start_timestamp = datetime.strptime(start_date, "%Y-%m-%d").timestamp()
+        end_timestamp = datetime.strptime(end_date, "%Y-%m-%d").timestamp()
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+    matched_transactions = []
+
+    for block in ifchain.chain:
+        if start_timestamp <= block.timestamp <= end_timestamp:
+            for tx in block.transactions:
+                matched_transactions.append({
+                    "transaction": tx,
+                    "block_index": block.index,
+                    "timestamp": datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+    return jsonify({
+        "total_matches": len(matched_transactions),
+        "transactions": matched_transactions
+    }), 200
+    
+@app.route('/search_transactions_by_amount', methods=['GET'])
+def search_transactions_by_amount():
+    """Search for transactions within a specified amount range."""
+    min_amount = request.args.get('min_amount', type=float, default=0)
+    max_amount = request.args.get('max_amount', type=float, default=float('inf'))
+
+    matched_transactions = []
+
+    for block in ifchain.chain:
+        for tx in block.transactions:
+            if min_amount <= tx["amount"] <= max_amount:
+                matched_transactions.append({
+                    "transaction": tx,
+                    "block_index": block.index,
+                    "timestamp": datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+    return jsonify({
+        "total_matches": len(matched_transactions),
+        "transactions": matched_transactions
+    }), 200
+    
+@app.route('/search_transactions_advanced', methods=['GET'])
+def search_transactions_advanced():
+    """Search transactions using multiple filters."""
+    sender = request.args.get('sender')
+    receiver = request.args.get('receiver')
+    token = request.args.get('token')
+    min_amount = request.args.get('min_amount', type=float, default=0)
+    max_amount = request.args.get('max_amount', type=float, default=float('inf'))
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    block_number = request.args.get('block_number', type=int)
+
+    matched_transactions = []
+
+    for block in ifchain.chain:
+        block_time = datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
+        if block_number is not None and block.index != block_number:
+            continue
+
+        if start_date and end_date:
+            try:
+                start_timestamp = datetime.strptime(start_date, "%Y-%m-%d").timestamp()
+                end_timestamp = datetime.strptime(end_date, "%Y-%m-%d").timestamp()
+                if not (start_timestamp <= block.timestamp <= end_timestamp):
+                    continue
+            except ValueError:
+                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+        for tx in block.transactions:
+            if sender and tx["sender"] != sender:
+                continue
+            if receiver and tx["receiver"] != receiver:
+                continue
+            if token and tx["token"] != token:
+                continue
+            if not (min_amount <= tx["amount"] <= max_amount):
+                continue
+
+            matched_transactions.append({
+                "transaction": tx,
+                "block_index": block.index,
+                "timestamp": block_time
+            })
+
+    return jsonify({
+        "total_matches": len(matched_transactions),
+        "transactions": matched_transactions
+    }), 200
     
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

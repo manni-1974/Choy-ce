@@ -407,7 +407,24 @@ def update_contract():
     
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():
-    return jsonify({"unconfirmed_transactions": ifchain.unconfirmed_transactions})
+    """Retrieve the list of pending transactions waiting to be mined."""
+    pending_transactions = [
+        {
+            "sender": tx["sender"],
+            "receiver": tx["receiver"],
+            "amount": tx["amount"],
+            "token": tx["token"],
+            "tax": tx["tax"],
+            "net_amount": tx["net_amount"],
+            "timestamp": datetime.utcfromtimestamp(tx.get("timestamp", time.time())).strftime('%Y-%m-%d %H:%M:%S')
+        }
+        for tx in ifchain.unconfirmed_transactions
+    ]
+
+    return jsonify({
+        "total_pending": len(pending_transactions),
+        "pending_transactions": sorted(pending_transactions, key=lambda x: x["timestamp"])
+    }), 200
 
 @app.route('/contract_state/<contract_name>', methods=['GET'])
 def get_contract_state(contract_name):

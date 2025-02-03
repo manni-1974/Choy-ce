@@ -6,7 +6,6 @@ import os
 import schedule
 import threading
 from datetime import datetime
-import hashlib
 
 app = Flask(__name__)
 
@@ -34,20 +33,21 @@ class Block:
         self.previous_hash = previous_hash
         self.poh_hash = poh_hash
         self.nonce = 0
-        
+
     def to_dict(self):
         """Convert block data to a dictionary with formatted timestamp."""
         return {
             "index": self.index,
             "timestamp": datetime.utcfromtimestamp(self.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
-            "transactions": self.transactions,
+            "transactions": [tx for tx in self.transactions],  # Ensure transactions are included
             "previous_hash": self.previous_hash,
             "poh_hash": self.poh_hash,
             "nonce": self.nonce
         }
 
     def compute_hash(self):
-        block_string = json.dumps(self.__dict__, sort_keys=True)
+        """Compute the SHA-256 hash of the block."""
+        block_string = json.dumps(self.to_dict(), sort_keys=True)
         return hashlib.sha256(block_string.encode()).hexdigest()
 
 class IFChain:
@@ -106,19 +106,25 @@ class IFChain:
         return True
 
     def mine(self):
+        """Mine a new block if there are pending transactions."""
         if not self.unconfirmed_transactions:
             return False
+
         last_block = self.last_block()
         poh_hash = self.poh.current_hash
+
         new_block = Block(
             index=last_block.index + 1,
-            timestamp=time.time(),  
+            timestamp=time.time(),
             transactions=self.unconfirmed_transactions,
             previous_hash=last_block.hash,
             poh_hash=poh_hash
         )
+
         proof = self.proof_of_work(new_block)
+        new_block.hash = proof
         self.add_block(new_block, proof)
+
         self.unconfirmed_transactions = []
         return new_block.index
 
@@ -236,6 +242,31 @@ class IFChain:
                 self.contracts = json.load(f)
         else:
             self.contracts = {}
+            
+    def mine(self):
+        if not self.unconfirmed_transactions:
+            return "No transactions to mine"
+
+        last_block = self.last_block()
+        poh_hash = self.poh.current_hash
+
+        transactions_to_add = self.unconfirmed_transactions.copy()
+
+        new_block = Block(
+            index=last_block.index + 1,
+            timestamp=time.time(),
+            transactions=transactions_to_add,
+            previous_hash=last_block.hash,
+            poh_hash=poh_hash
+        )
+
+        proof = self.proof_of_work(new_block)
+        new_block.hash = proof
+        self.add_block(new_block, proof)
+
+        self.unconfirmed_transactions = []
+
+        return f"Block {new_block.index} is mined and contains {len(transactions_to_add)} transactions."
             
 ifchain = IFChain()
 
@@ -617,5 +648,37 @@ def search_transactions_advanced():
         "transactions": matched_transactions
     }), 200
     
+@app.route('/block/<block_identifier>', methods=['GET'])
+def get_block_details(block_identifier):
+    """
+    Retrieve block details by either block index or block hash.
+    """
+    
+    if block_identifier.isdigit():
+        block_index = int(block_identifier)
+        block = next((b for b in ifchain.chain if b.index == block_index), None)
+    else:
+        block_hash = block_identifier
+        block = next((b for b in ifchain.chain if b.hash == block_hash), None)
+
+    if block is None:
+        return jsonify({"error": "Block not found"}), 404
+
+    return jsonify(block.to_dict()), 200
+    
+@app.route('/debug_hashes', methods=['GET'])
+def debug_hashes():
+    """
+    Debugging route to check stored hashes vs computed ones.
+    """
+    hashes = []
+    for block in ifchain.chain:
+        hashes.append({
+            "index": block.index,
+            "stored_hash": block.hash,
+            "computed_hash": block.compute_hash()
+        })
+    return jsonify(hashes), 200
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

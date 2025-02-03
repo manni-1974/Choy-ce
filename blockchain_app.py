@@ -472,5 +472,26 @@ def get_wallet_balance(wallet_address):
 
     return jsonify({"wallet_address": wallet_address, "balance": balance}), 200
     
+@app.route('/search_transactions', methods=['GET'])
+def search_transactions():
+    """Search transactions by sender, receiver, token type, or all."""
+    sender = request.args.get('sender')
+    receiver = request.args.get('receiver')
+    token = request.args.get('token')
+
+    matching_transactions = []
+
+    for block in ifchain.chain:
+        for tx in block.transactions:
+            if ((not sender or tx["sender"] == sender) and
+                (not receiver or tx["receiver"] == receiver) and
+                (not token or tx["token"] == token)):
+                matching_transactions.append(tx)
+
+    return jsonify({
+        "total_matches": len(matching_transactions),
+        "transactions": matching_transactions
+    }), 200
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

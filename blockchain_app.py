@@ -493,5 +493,41 @@ def search_transactions():
         "transactions": matching_transactions
     }), 200
     
+@app.route('/search_transactions_advanced', methods=['GET'])
+def search_transactions_advanced():
+    """Search transactions by sender, receiver, token, block number, or time range."""
+    sender = request.args.get('sender')
+    receiver = request.args.get('receiver')
+    token = request.args.get('token')
+    block_number = request.args.get('block_number', type=int)
+    start_time = request.args.get('start_time')  # Expecting YYYY-MM-DD HH:MM:SS
+    end_time = request.args.get('end_time')
+
+    matching_transactions = []
+
+    for block in ifchain.chain:
+        if block_number is not None and block.index != block_number:
+            continue
+
+        block_time = datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
+        if start_time and block_time < start_time:
+            continue
+        if end_time and block_time > end_time:
+            continue
+
+        for tx in block.transactions:
+            if ((not sender or tx["sender"] == sender) and
+                (not receiver or tx["receiver"] == receiver) and
+                (not token or tx["token"] == token)):
+                matching_transactions.append({
+                    **tx, "block_index": block.index, "timestamp": block_time
+                })
+
+    return jsonify({
+        "total_matches": len(matching_transactions),
+        "transactions": matching_transactions
+    }), 200
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

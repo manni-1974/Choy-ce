@@ -704,6 +704,28 @@ def get_pending_transactions():
         "total_pending": len(ifchain.unconfirmed_transactions),
         "pending_transactions": ifchain.unconfirmed_transactions
     }), 200
+    
+@app.route('/blockchain_overview', methods=['GET'])
+def blockchain_overview():
+    """Provides an overview of the blockchain status."""
+    
+    total_blocks = len(ifchain.chain)
+    total_transactions = sum(len(block.transactions) for block in ifchain.chain)
+    total_wallets = len(set(tx["sender"] for block in ifchain.chain for tx in block.transactions) |
+                        set(tx["receiver"] for block in ifchain.chain for tx in block.transactions))
+    total_contracts = len(ifchain.contracts)
+    pending_transactions = len(ifchain.unconfirmed_transactions)
 
+    latest_block = ifchain.chain[-1].to_dict() if ifchain.chain else None
+
+    return jsonify({
+        "total_blocks": total_blocks,
+        "total_transactions": total_transactions,
+        "total_wallets": total_wallets,
+        "total_smart_contracts": total_contracts,
+        "pending_transactions": pending_transactions,
+        "latest_block": latest_block
+    }), 200
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

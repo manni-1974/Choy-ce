@@ -6,6 +6,7 @@ import os
 import schedule
 import threading
 from datetime import datetime
+import hashlib
 
 app = Flask(__name__)
 
@@ -100,6 +101,7 @@ class IFChain:
             return False
         transaction['tax'] = tax
         transaction['net_amount'] = net_amount
+        transaction["hash"] = hashlib.sha256(json.dumps(transaction, sort_keys=True).encode()).hexdigest()
         self.unconfirmed_transactions.append(transaction)
         return True
 
@@ -528,6 +530,25 @@ def search_transactions_advanced():
         "total_matches": len(matching_transactions),
         "transactions": matching_transactions
     }), 200
+    
+@app.route('/search_transaction_by_hash', methods=['GET'])
+def search_transaction_by_hash():
+    """Search for a transaction using its unique hash."""
+    tx_hash = request.args.get('hash')
+
+    if not tx_hash:
+        return jsonify({"error": "Transaction hash is required"}), 400
+
+    for block in ifchain.chain:
+        for tx in block.transactions:
+            if "hash" in tx and tx["hash"] == tx_hash:
+                return jsonify({
+                    "transaction": tx,
+                    "block_index": block.index,
+                    "timestamp": datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                }), 200
+
+    return jsonify({"error": "Transaction not found"}), 404
     
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

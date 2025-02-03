@@ -33,6 +33,17 @@ class Block:
         self.previous_hash = previous_hash
         self.poh_hash = poh_hash
         self.nonce = 0
+        
+    def to_dict(self):
+        """Convert block data to a dictionary with formatted timestamp."""
+        return {
+            "index": self.index,
+            "timestamp": datetime.utcfromtimestamp(self.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+            "transactions": self.transactions,
+            "previous_hash": self.previous_hash,
+            "poh_hash": self.poh_hash,
+            "nonce": self.nonce
+        }
 
     def compute_hash(self):
         block_string = json.dumps(self.__dict__, sort_keys=True)
@@ -97,11 +108,13 @@ class IFChain:
             return False
         last_block = self.last_block()
         poh_hash = self.poh.current_hash
-        new_block = Block(index=last_block.index + 1,
-                          timestamp=time.time(),
-                          transactions=self.unconfirmed_transactions,
-                          previous_hash=last_block.hash,
-                          poh_hash=poh_hash)
+        new_block = Block(
+            index=last_block.index + 1,
+            timestamp=time.time(),  
+            transactions=self.unconfirmed_transactions,
+            previous_hash=last_block.hash,
+            poh_hash=poh_hash
+        )
         proof = self.proof_of_work(new_block)
         self.add_block(new_block, proof)
         self.unconfirmed_transactions = []
@@ -236,13 +249,11 @@ schedule.every(365).days.do(ifchain.apply_inflation)
 
 @app.route('/chain', methods=['GET'])
 def get_chain():
-    chain_data = []
-    for block in ifchain.chain:
-        chain_data.append(block.__dict__)
+    """Retrieve the full blockchain with formatted timestamps."""
+    chain_data = [block.to_dict() for block in ifchain.chain]  
     return jsonify({
         "length": len(chain_data),
-        "chain": chain_data,
-        "contracts": ifchain.contracts  
+        "chain": chain_data
     })
 
 @app.route('/apply_inflation', methods=['POST'])
@@ -423,13 +434,17 @@ def get_block(index):
         return jsonify(ifchain.chain[index].__dict__), 200
     return jsonify({"error": "Block not found"}), 404
     
-@app.route('/transactions', methods=['GET'])
-def get_all_transactions():
-    """Fetch all transactions from the blockchain."""
+@app.route('/all_transactions', methods=['GET'])
+def fetch_all_transactions():
+    """Retrieve all transactions in the blockchain."""
     transactions = []
     for block in ifchain.chain:
         transactions.extend(block.transactions)
-    return jsonify({"transactions": transactions}), 200
+
+    return jsonify({
+        "total_transactions": len(transactions),
+        "transactions": transactions
+    }), 200
     
 @app.route('/transactions/<wallet_address>', methods=['GET'])
 def get_transactions(wallet_address):

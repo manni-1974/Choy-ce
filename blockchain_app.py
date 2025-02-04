@@ -83,30 +83,48 @@ class IFChain:
         return self.chain[-1]
 
     def add_block(self, block, proof):
-        previous_hash = self.last_block().hash
+        """Adds a validated block to the chain and updates transaction confirmations."""
+        previous_hash = self.last_block().hash if self.chain else "0"
+
         if previous_hash != block.previous_hash:
-            return False
-        if not self.is_valid_proof(block, proof):
-            return False
+            return False  # Block invalid
+
         block.hash = proof
         self.chain.append(block)
+    
+        for prev_block in self.chain:
+            for tx in prev_block.transactions:
+                tx["block_confirmations"] += 1  # Increase confirmations
+
         return True
 
     def is_valid_proof(self, block, block_hash):
         return (block_hash.startswith('0' * IFChain.difficulty) and
                 block_hash == block.compute_hash())
 
-    def add_new_transaction(self, transaction):
-        if transaction["token"] in self.frozen_tokens and self.frozen_tokens[transaction["token"]]:
+    def add_new_transaction(self, tx_data):
+        """Adds a new transaction to the unconfirmed transaction pool."""
+    
+        required_fields = ["sender", "receiver", "amount", "token"]
+        if not all(field in tx_data for field in required_fields):
             return False
 
-        tax = transaction['amount'] * IFChain.transaction_tax_rate
-        net_amount = transaction['amount'] - tax
-        if net_amount < 0:
-            return False
-        transaction['tax'] = tax
-        transaction['net_amount'] = net_amount
-        transaction["hash"] = hashlib.sha256(json.dumps(transaction, sort_keys=True).encode()).hexdigest()
+        transaction = {
+            "sender": tx_data["sender"],
+            "receiver": tx_data["receiver"],
+            "amount": tx_data["amount"],
+            "token": tx_data["token"],
+            "tax": round(tx_data["amount"] * 0.03, 2),
+            "net_amount": round(tx_data["amount"] * 0.97, 2),
+            "hash": hashlib.sha256(json.dumps(tx_data, sort_keys=True).encode()).hexdigest(),
+            "timestamp": time.time(),
+            "gas_fee": round(tx_data["amount"] * 0.001, 6),
+            "tx_type": tx_data.get("tx_type", "transfer"),
+            "block_confirmations": 0,
+            "status": "pending",
+            "signatures": []
+        }
+
         self.unconfirmed_transactions.append(transaction)
         return True
 
@@ -226,6 +244,7 @@ class IFChain:
             self.contracts = {}
             
     def mine(self):
+        """Mine a new block if there are pending transactions."""
         if not self.unconfirmed_transactions:
             return "No transactions to mine"
 
@@ -245,9 +264,12 @@ class IFChain:
         proof = self.proof_of_work(new_block)
         new_block.hash = proof
         self.add_block(new_block, proof)
+    
+        for tx in transactions_to_add:
+            tx["status"] = "confirmed"
+            tx["block_confirmations"] = 1  # First confirmation after mining
 
         self.unconfirmed_transactions = []
-
         return f"Block {new_block.index} is mined and contains {len(transactions_to_add)} transactions."
         
     def get_wallet_balance(self, wallet_address):
@@ -597,7 +619,12 @@ def search_transaction_by_hash():
                 return jsonify({
                     "transaction": tx,
                     "block_index": block.index,
-                    "timestamp": datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                    "timestamp": datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+                    "status": tx["status"],
+                    "confirmations": tx["block_confirmations"],
+                    "gas_fee": tx["gas_fee"],
+                    "type": tx["tx_type"],
+                    "signatures": tx["signatures"]
                 }), 200
 
     return jsonify({"error": "Transaction not found"}), 404

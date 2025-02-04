@@ -489,14 +489,61 @@ def fetch_all_transactions():
         "transactions": transactions
     }), 200
     
-@app.route('/transactions/<wallet_address>', methods=['GET'])
-def get_transactions(wallet_address):
-    """Retrieve transactions involving a specific wallet address."""
-    transactions = [
-        tx for block in ifchain.chain for tx in block.transactions
-        if tx["sender"] == wallet_address or tx["receiver"] == wallet_address
-    ]
-    return jsonify({"wallet_address": wallet_address, "transactions": transactions}), 200
+@app.route('/wallet_transactions/<wallet_address>', methods=['GET'])
+def get_wallet_transactions(wallet_address):
+    """Retrieve all transactions involving a specific wallet address with filtering options."""
+    
+    token_filter = request.args.get('token')
+    transaction_type = request.args.get('type')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    transactions = []
+
+    for block in ifchain.chain:
+        block_time = datetime.utcfromtimestamp(block.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+        
+        block_timestamp = datetime.strptime(block_time, '%Y-%m-%d %H:%M:%S')
+
+        for tx in block.transactions:
+            
+            if wallet_address not in [tx["sender"], tx["receiver"]]:
+                continue
+            
+            if token_filter and tx["token"] != token_filter:
+                continue
+            
+            if transaction_type == "sent" and tx["sender"] != wallet_address:
+                continue
+            if transaction_type == "received" and tx["receiver"] != wallet_address:
+                continue
+            
+            if start_date and end_date:
+                try:
+                    start_timestamp = datetime.strptime(start_date, "%Y-%m-%d")
+                    end_timestamp = datetime.strptime(end_date, "%Y-%m-%d")
+                    if not (start_timestamp <= block_timestamp <= end_timestamp):
+                        continue
+                except ValueError:
+                    return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+           
+            transactions.append({
+                "transaction_hash": tx["hash"],
+                "block_index": block.index,
+                "timestamp": block_time,
+                "sender": tx["sender"],
+                "receiver": tx["receiver"],
+                "amount": tx["amount"],
+                "token": tx["token"],
+                "tax": tx["tax"],
+                "net_amount": tx["net_amount"]
+            })
+
+    return jsonify({
+        "wallet_address": wallet_address,
+        "total_transactions": len(transactions),
+        "transactions": transactions
+    }), 200
     
 @app.route('/wallet_balance/<wallet_address>', methods=['GET'])
 def get_wallet_balance(wallet_address):

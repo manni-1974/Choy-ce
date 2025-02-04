@@ -33,23 +33,28 @@ class Block:
         self.previous_hash = previous_hash
         self.poh_hash = poh_hash
         self.nonce = 0
+        self.hash = None  
+        self.hash = self.compute_hash()  # 🔹 Compute hash after setting other attributes
 
-    def to_dict(self):
-        """Convert block data to a dictionary with formatted timestamp."""
-        return {
+    def to_dict(self, include_hash=True):
+        """Convert block data to a dictionary, optionally including the hash."""
+        block_dict = {
             "index": self.index,
             "timestamp": datetime.utcfromtimestamp(self.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
-            "transactions": [tx for tx in self.transactions],  # Ensure transactions are included
+            "transactions": self.transactions,
             "previous_hash": self.previous_hash,
             "poh_hash": self.poh_hash,
             "nonce": self.nonce
         }
+        if include_hash:
+            block_dict["hash"] = self.hash
+        return block_dict
 
     def compute_hash(self):
-        """Compute the SHA-256 hash of the block."""
-        block_string = json.dumps(self.to_dict(), sort_keys=True)
+        """Compute SHA-256 hash of block data, excluding the hash field itself."""
+        block_string = json.dumps(self.to_dict(include_hash=False), sort_keys=True)
         return hashlib.sha256(block_string.encode()).hexdigest()
-
+        
 class IFChain:
     difficulty = 2
     transaction_tax_rate = 0.03
@@ -104,29 +109,6 @@ class IFChain:
         transaction["hash"] = hashlib.sha256(json.dumps(transaction, sort_keys=True).encode()).hexdigest()
         self.unconfirmed_transactions.append(transaction)
         return True
-
-    def mine(self):
-        """Mine a new block if there are pending transactions."""
-        if not self.unconfirmed_transactions:
-            return False
-
-        last_block = self.last_block()
-        poh_hash = self.poh.current_hash
-
-        new_block = Block(
-            index=last_block.index + 1,
-            timestamp=time.time(),
-            transactions=self.unconfirmed_transactions,
-            previous_hash=last_block.hash,
-            poh_hash=poh_hash
-        )
-
-        proof = self.proof_of_work(new_block)
-        new_block.hash = proof
-        self.add_block(new_block, proof)
-
-        self.unconfirmed_transactions = []
-        return new_block.index
 
     def proof_of_work(self, block):
         block.nonce = 0
@@ -737,6 +719,14 @@ def blockchain_overview():
         "pending_transactions": pending_transactions,
         "latest_block": latest_block
     }), 200
+    
+@app.route('/block/<block_hash>', methods=['GET'])
+def get_block_by_hash(block_hash):
+    """Retrieve a block by its hash."""
+    for block in ifchain.chain:
+        if block.compute_hash() == block_hash:
+            return jsonify(block.to_dict()), 200
+    return jsonify({"error": "Block not found"}), 404
     
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

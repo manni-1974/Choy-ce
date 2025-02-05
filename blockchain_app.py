@@ -6,6 +6,7 @@ import os
 import schedule
 import threading
 from datetime import datetime
+import requests
 
 app = Flask(__name__)
 
@@ -63,6 +64,7 @@ class IFChain:
         self.CONTRACT_STATE_FILE = "contract_states.json"
         self.unconfirmed_transactions = []
         self.chain = []
+        self.peers = set()
         self.poh = PoH()
         self.create_genesis_block()
         self.token_supply = 500_000_000
@@ -73,6 +75,53 @@ class IFChain:
         self.minted_tokens = {}
         self.contracts = {}
         self.load_contract_state()
+        self.sync_chain()
+
+    def sync_chain(self):
+        """Fetches the longest blockchain from peers and updates local chain if needed."""
+        longest_chain = None
+        max_length = len(self.chain)
+
+        for peer in self.peers:
+            try:
+                response = requests.get(f"{peer}/chain")
+                if response.status_code == 200:
+                    peer_chain = response.json().get("chain", [])
+                    peer_length = len(peer_chain)
+
+                    if peer_length > max_length:
+                        max_length = peer_length
+                        longest_chain = peer_chain
+            except requests.exceptions.RequestException:
+                continue
+
+        if longest_chain:
+            self.chain = [Block(**block) for block in longest_chain]
+            return True
+        return False
+
+    def register_peer(self, peer):
+        """Registers a new node in the network."""
+        if peer not in self.peers:
+            self.peers.add(peer)
+            return True
+        return False
+
+    def broadcast_transaction(self, tx_data):
+        """Sends a new transaction to all peers."""
+        for peer in self.peers:
+            try:
+                requests.post(f"{peer}/receive_transaction", json=tx_data, timeout=2)
+            except requests.exceptions.RequestException:
+                continue
+
+    def broadcast_block(self, block_data):
+        """Sends a newly mined block to all peers."""
+        for peer in self.peers:
+            try:
+                requests.post(f"{peer}/receive_block", json=block_data, timeout=2)
+            except requests.exceptions.RequestException:
+                continue
         
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
@@ -244,7 +293,7 @@ class IFChain:
             self.contracts = {}
             
     def mine(self):
-        """Mine a new block if there are pending transactions."""
+        """Mine a new block if there are pending transactions and broadcast it."""
         if not self.unconfirmed_transactions:
             return "No transactions to mine"
 
@@ -264,13 +313,16 @@ class IFChain:
         proof = self.proof_of_work(new_block)
         new_block.hash = proof
         self.add_block(new_block, proof)
-    
+
         for tx in transactions_to_add:
             tx["status"] = "confirmed"
             tx["block_confirmations"] = 1  # First confirmation after mining
 
         self.unconfirmed_transactions = []
-        return f"Block {new_block.index} is mined and contains {len(transactions_to_add)} transactions."
+    
+        self.broadcast_block(new_block.to_dict())
+
+        return f"Block {new_block.index} is mined, contains {len(transactions_to_add)} transactions, and is broadcasted."
         
     def get_wallet_balance(self, wallet_address):
         """Retrieve the balance of a given wallet by summing all transactions."""
@@ -801,6 +853,49 @@ def get_block_by_hash(block_hash):
         if block.compute_hash() == block_hash:
             return jsonify(block.to_dict()), 200
     return jsonify({"error": "Block not found"}), 404
+    
+@app.route('/register_peer', methods=['POST'])
+def register_peer():
+    """Registers a new peer node."""
+    data = request.get_json()
+    peer = data.get("peer")
+
+    if not peer:
+        return jsonify({"error": "Peer address required"}), 400
+
+    ifchain.register_peer(peer)
+    return jsonify({"message": f"Peer {peer} added successfully", "peers": list(ifchain.peers)}), 200
+
+@app.route('/peers', methods=['GET'])
+def get_peers():
+    """Returns the list of registered peers."""
+    return jsonify({"peers": list(ifchain.peers)}), 200
+
+@app.route('/receive_block', methods=['POST'])
+def receive_block():
+    """Receives and validates a new block from peers."""
+    block_data = request.get_json()
+    new_block = Block(**block_data)
+
+    if ifchain.add_block(new_block, new_block.hash):
+        return jsonify({"message": "Block accepted"}), 200
+    return jsonify({"error": "Block rejected"}), 400
+
+@app.route('/receive_transaction', methods=['POST'])
+def receive_transaction():
+    """Receives and stores a new transaction from peers."""
+    tx_data = request.get_json()
+
+    if ifchain.add_new_transaction(tx_data):
+        return jsonify({"message": "Transaction accepted"}), 200
+    return jsonify({"error": "Invalid transaction"}), 400
+    
+@app.route('/sync_chain', methods=['GET'])
+def sync_chain():
+    """API endpoint to synchronize blockchain with peers."""
+    if ifchain.sync_chain():
+        return jsonify({"message": "Blockchain synchronized successfully."}), 200
+    return jsonify({"error": "No longer chain found or sync failed."}), 400
     
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

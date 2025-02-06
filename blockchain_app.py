@@ -237,9 +237,9 @@ class IFChain:
         return self.token_supply
         
     def deploy_contract(self, contract_name, contract_code, owner, expiration_time=None):
-        """Deploy a contract with an optional expiration time."""
+        """Deploy a smart contract with ownership and optional expiration."""
         if contract_name in self.contracts:
-            return False
+            return False  # Contract already exists
 
         wrapped_code = f"global state\nstate = {{}}\n{contract_code}"
 
@@ -247,10 +247,12 @@ class IFChain:
             "code": wrapped_code,
             "state": {},
             "state_versions": [],
-            "owner": owner,
+            "owner": owner,  # Owner's wallet address
             "logs": [],
-            "expiration": time.time() + expiration_time if expiration_time else None
+            "expiration": time.time() + expiration_time if expiration_time else None  # Optional expiration
         }
+
+        self.save_contract_state()
         return True
 
     def check_contract_validity(self, contract_name):
@@ -265,7 +267,7 @@ class IFChain:
         return True
 
     def execute_contract(self, contract_name, function_name, params, sender):
-        """Execute contract function with gas fee and improved error handling."""
+        """Execute contract function with gas fee deduction and error handling."""
         if contract_name not in self.contracts:
             return jsonify({"error": "Contract not found"}), 404
 
@@ -279,10 +281,19 @@ class IFChain:
 
         try:
             exec(contract_code, {}, local_scope)
-        
+    
             if function_name in local_scope and callable(local_scope[function_name]):
                 gas_fee = CONTRACT_EXECUTION_FEE
-                ifchain.get_wallet_balance(sender)  # Ensure sender has enough balance
+           
+                sender_balance = ifchain.get_wallet_balance(sender)
+                if sender_balance < gas_fee:
+                    return jsonify({"error": "Insufficient balance for gas fee"}), 400
+            
+                for block in self.chain:
+                    for tx in block.transactions:
+                        if tx["sender"] == sender:
+                            tx["amount"] -= gas_fee  # Deduct gas fee
+                            tx["net_amount"] -= gas_fee
 
                 result = local_scope[function_name](**params)
                 self.contracts[contract_name]["state"] = local_scope["state"]
@@ -299,14 +310,15 @@ class IFChain:
                 self.save_contract_state()
                 return jsonify({
                     "message": f"Function {function_name} executed successfully.",
-                    "result": result
+                    "result": result,
+                    "gas_fee_deducted": gas_fee
                 }), 200
-        
+    
             return jsonify({"error": "Function not found"}), 400
 
         except Exception as e:
             return jsonify({"error": f"Contract execution failed: {str(e)}"}), 400
-    
+        
     def save_contract_state(self):
         """Save all smart contract states to a file for persistence."""
         with open(self.CONTRACT_STATE_FILE, "w") as f:
@@ -387,6 +399,56 @@ class IFChain:
 
         except Exception as e:
             return jsonify({"error": f"Contract call failed: {str(e)}"}), 400
+            
+    def update_contract(self, contract_name, new_code, sender):
+        """Update an existing smart contract with ownership verification."""
+        if contract_name not in self.contracts:
+            return {"error": "Contract not found"}, 404
+
+        if self.contracts[contract_name]["owner"] != sender:
+            return {"error": "Unauthorized: Only the contract owner can update it"}, 403
+
+        existing_state = self.contracts[contract_name]["state"]
+    
+        if "versions" not in self.contracts[contract_name]:
+            self.contracts[contract_name]["versions"] = []
+
+        self.contracts[contract_name]["versions"].append({
+            "code": self.contracts[contract_name]["code"],
+            "timestamp": time.time()
+        })
+    
+        self.contracts[contract_name]["code"] = new_code
+        self.contracts[contract_name]["state"] = existing_state
+
+        self.save_contract_state()
+        return {"message": f"Contract {contract_name} updated successfully."}, 200
+        
+    def transfer_contract_ownership(self, contract_name, new_owner, sender):
+        """Allows the current owner to transfer contract ownership."""
+        if contract_name not in self.contracts:
+            return {"error": "Contract not found"}, 404
+
+        if self.contracts[contract_name]["owner"] != sender:
+            return {"error": "Unauthorized: Only the contract owner can transfer ownership"}, 403
+
+        self.contracts[contract_name]["owner"] = new_owner
+        self.save_contract_state()
+
+        return {"message": f"Ownership of {contract_name} transferred to {new_owner}"}, 200
+        
+    def delete_contract(self, contract_name, sender):
+        """Delete a contract, only if the sender is the owner."""
+        if contract_name not in self.contracts:
+            return {"error": "Contract not found"}, 404
+
+        if self.contracts[contract_name]["owner"] != sender:
+            return {"error": "Unauthorized: Only the contract owner can delete it"}, 403
+
+        del self.contracts[contract_name]
+        self.save_contract_state()
+    
+        return {"message": f"Contract {contract_name} deleted successfully."}, 200
             
 ifchain = IFChain()
 
@@ -495,23 +557,28 @@ def api_execute_contract():
  
 @app.route('/update_contract', methods=['PUT'])
 def update_contract():
-    """Update a contract only if the request is from the owner."""
+    """Update a contract only if the request is from the owner and retains logs/state."""
     data = request.get_json()
-
+    
     if "contract_name" not in data or "new_code" not in data or "owner" not in data:
         return jsonify({"error": "Missing required fields"}), 400
 
     contract_name = data["contract_name"]
     new_code = data["new_code"]
     owner = data["owner"]
-
+    
     if contract_name not in ifchain.contracts:
         return jsonify({"error": "Contract not found"}), 404
-
+    
     if ifchain.contracts[contract_name]["owner"] != owner:
         return jsonify({"error": "Unauthorized update"}), 403
-
+    
     existing_state = ifchain.contracts[contract_name]["state"]
+    existing_logs = ifchain.contracts[contract_name].get("logs", [])
+    
+    if "versions" not in ifchain.contracts[contract_name]:
+        ifchain.contracts[contract_name]["versions"] = []
+
     ifchain.contracts[contract_name]["versions"].append({
         "code": ifchain.contracts[contract_name]["code"],
         "timestamp": time.time()
@@ -519,10 +586,14 @@ def update_contract():
     
     ifchain.contracts[contract_name]["code"] = new_code
     ifchain.contracts[contract_name]["state"] = existing_state
+    ifchain.contracts[contract_name]["logs"] = existing_logs  # 🔹 Preserve logs
     ifchain.save_contract_state()
 
-    return jsonify({"message": f"Contract {contract_name} updated successfully."}), 200
-    
+    return jsonify({
+        "message": f"Contract {contract_name} updated successfully.",
+        "versions": len(ifchain.contracts[contract_name]["versions"])  # ✅ Return the number of versions
+    }), 200
+
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():
     """Retrieve the list of pending transactions waiting to be mined."""
@@ -971,6 +1042,28 @@ def execute_contract_call():
         return jsonify({"contract": contract_name, "function": function_name, "result": result}), 200
 
     return jsonify({"error": f"Function {function_name} not found in contract {contract_name}"}), 404
+    
+@app.route('/transfer_contract_ownership', methods=['POST'])
+def api_transfer_contract_ownership():
+    """API endpoint to transfer contract ownership."""
+    data = request.get_json()
+
+    if "contract_name" not in data or "new_owner" not in data or "sender" not in data:
+        return jsonify({"error": "Missing contract name, new owner, or sender"}), 400
+
+    result, status_code = ifchain.transfer_contract_ownership(data["contract_name"], data["new_owner"], data["sender"])
+    return jsonify(result), status_code
+
+@app.route('/delete_contract/<contract_name>', methods=['DELETE'])
+def api_delete_contract(contract_name):
+    """API endpoint to delete a contract (only owner can delete)."""
+    sender = request.args.get("sender")
+
+    if not sender:
+        return jsonify({"error": "Sender address required"}), 400
+
+    result, status_code = ifchain.delete_contract(contract_name, sender)
+    return jsonify(result), status_code
     
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

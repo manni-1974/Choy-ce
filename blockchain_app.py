@@ -59,6 +59,9 @@ class Block:
 class IFChain:
     difficulty = 2
     transaction_tax_rate = 0.03
+    GAS_FEE_PER_TRANSACTION = 0.001  
+    GAS_FEE_PER_CONTRACT_EXECUTION = 0.002
+    GAS_FEE_STORAGE = "gas_fees.json"
     
     def __init__(self):
         self.CONTRACT_STATE_FILE = "contract_states.json"

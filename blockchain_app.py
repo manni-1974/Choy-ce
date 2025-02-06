@@ -236,48 +236,76 @@ class IFChain:
     def get_total_supply(self):
         return self.token_supply
         
-    def deploy_contract(self, contract_name, contract_code):
-        """Deploy a new smart contract with a global state variable."""
+    def deploy_contract(self, contract_name, contract_code, owner, expiration_time=None):
+        """Deploy a contract with an optional expiration time."""
         if contract_name in self.contracts:
-            return False  
+            return False
 
         wrapped_code = f"global state\nstate = {{}}\n{contract_code}"
 
         self.contracts[contract_name] = {
             "code": wrapped_code,
             "state": {},
-            "state_versions": []
+            "state_versions": [],
+            "owner": owner,
+            "logs": [],
+            "expiration": time.time() + expiration_time if expiration_time else None
         }
         return True
 
-    def execute_contract(self, contract_name, function_name, params):
-        """Execute an existing smart contract function safely and log state versions."""
+    def check_contract_validity(self, contract_name):
+        """Check if a contract is still valid or expired."""
         if contract_name not in self.contracts:
             return False
+
+        expiration = self.contracts[contract_name].get("expiration")
+        if expiration and time.time() > expiration:
+            return False  # Contract is expired
+
+        return True
+
+    def execute_contract(self, contract_name, function_name, params, sender):
+        """Execute contract function with gas fee and improved error handling."""
+        if contract_name not in self.contracts:
+            return jsonify({"error": "Contract not found"}), 404
 
         contract_code = self.contracts[contract_name]["code"]
         contract_state = self.contracts[contract_name]["state"]
 
-        if "state_versions" not in self.contracts[contract_name]:
-            self.contracts[contract_name]["state_versions"] = []
-
-        self.contracts[contract_name]["state_versions"].append({
-            "timestamp": time.time(),
-            "state": contract_state.copy()  # Store a copy of the state
-        })
+        if "logs" not in self.contracts[contract_name]:
+            self.contracts[contract_name]["logs"] = []
 
         local_scope = {"state": contract_state}
-        exec(contract_code, {}, local_scope)
 
-        if function_name in local_scope and callable(local_scope[function_name]):
-            result = local_scope[function_name](**params)
+        try:
+            exec(contract_code, {}, local_scope)
+        
+            if function_name in local_scope and callable(local_scope[function_name]):
+                gas_fee = CONTRACT_EXECUTION_FEE
+                ifchain.get_wallet_balance(sender)  # Ensure sender has enough balance
 
-            self.contracts[contract_name]["state"] = local_scope["state"]
-            self.save_contract_state()  # Save updates
+                result = local_scope[function_name](**params)
+                self.contracts[contract_name]["state"] = local_scope["state"]
 
-            return result
+                self.contracts[contract_name]["logs"].append({
+                    "timestamp": time.time(),
+                    "function": function_name,
+                    "params": params,
+                    "result": result,
+                    "executed_by": sender,
+                    "gas_fee": gas_fee
+                })
 
-        return False
+                self.save_contract_state()
+                return jsonify({
+                    "message": f"Function {function_name} executed successfully.",
+                    "result": result
+                }), 200
+        
+            return jsonify({"error": "Function not found"}), 400
+
+        except Exception as e:
+            return jsonify({"error": f"Contract execution failed: {str(e)}"}), 400
     
     def save_contract_state(self):
         """Save all smart contract states to a file for persistence."""
@@ -334,6 +362,31 @@ class IFChain:
                 if tx["sender"] == wallet_address:
                     balance -= tx["amount"]  # Deduct sent amount
         return balance
+        
+    def execute_contract_call(self, contract_name, function_name, params):
+        """Call a smart contract function without modifying blockchain state."""
+        if contract_name not in self.contracts:
+            return jsonify({"error": "Contract not found"}), 404
+
+        contract_code = self.contracts[contract_name]["code"]
+        contract_state = self.contracts[contract_name]["state"]
+
+        local_scope = {"state": contract_state}
+
+        try:
+            exec(contract_code, {}, local_scope)
+
+            if function_name in local_scope and callable(local_scope[function_name]):
+                result = local_scope[function_name](**params)
+                return jsonify({
+                    "message": f"Function {function_name} executed successfully.",
+                    "result": result
+                }), 200
+
+            return jsonify({"error": "Function not found"}), 400
+
+        except Exception as e:
+            return jsonify({"error": f"Contract call failed: {str(e)}"}), 400
             
 ifchain = IFChain()
 
@@ -413,22 +466,21 @@ def get_total_supply():
     
 @app.route('/deploy_contract', methods=['POST'])
 def api_deploy_contract():
-    """API endpoint to deploy a smart contract with an initialized state."""
+    """API endpoint to deploy a smart contract."""
     data = request.get_json()
 
-    if "contract_name" not in data or "contract_code" not in data:
-        return jsonify({"error": "Missing contract name or code"}), 400
+    if "contract_name" not in data or "contract_code" not in data or "owner" not in data:
+        return jsonify({"error": "Missing contract name, code, or owner"}), 400
 
     contract_name = data["contract_name"]
     contract_code = data["contract_code"]
+    owner = data["owner"]
 
     if contract_name in ifchain.contracts:
         return jsonify({"error": f"Contract {contract_name} already exists."}), 400
 
-    contract_code = f"global state\nstate = {{}}\n{contract_code}"
-
-    if ifchain.deploy_contract(contract_name, contract_code):
-        return jsonify({"message": f"Contract {contract_name} deployed successfully."}), 200
+    if ifchain.deploy_contract(contract_name, contract_code, owner):
+        return jsonify({"message": f"Contract {contract_name} deployed successfully by {owner}."}), 200
 
     return jsonify({"error": "Contract deployment failed."}), 400
     
@@ -443,34 +495,33 @@ def api_execute_contract():
  
 @app.route('/update_contract', methods=['PUT'])
 def update_contract():
-    """Update an existing smart contract with new code while preserving state and version history."""
+    """Update a contract only if the request is from the owner."""
     data = request.get_json()
 
-    if "contract_name" not in data or "new_code" not in data:
-        return jsonify({"error": "Missing contract name or new code"}), 400
+    if "contract_name" not in data or "new_code" not in data or "owner" not in data:
+        return jsonify({"error": "Missing required fields"}), 400
 
     contract_name = data["contract_name"]
     new_code = data["new_code"]
+    owner = data["owner"]
 
     if contract_name not in ifchain.contracts:
         return jsonify({"error": "Contract not found"}), 404
 
+    if ifchain.contracts[contract_name]["owner"] != owner:
+        return jsonify({"error": "Unauthorized update"}), 403
+
     existing_state = ifchain.contracts[contract_name]["state"]
-
-    if "versions" not in ifchain.contracts[contract_name]:
-        ifchain.contracts[contract_name]["versions"] = []
-
     ifchain.contracts[contract_name]["versions"].append({
-        "code": ifchain.contracts[contract_name]["code"],  
-        "timestamp": time.time()  # Store update time
+        "code": ifchain.contracts[contract_name]["code"],
+        "timestamp": time.time()
     })
-
+    
     ifchain.contracts[contract_name]["code"] = new_code
     ifchain.contracts[contract_name]["state"] = existing_state
-
     ifchain.save_contract_state()
 
-    return jsonify({"message": f"Contract {contract_name} updated successfully with version history."}), 200
+    return jsonify({"message": f"Contract {contract_name} updated successfully."}), 200
     
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():
@@ -896,6 +947,30 @@ def sync_chain():
     if ifchain.sync_chain():
         return jsonify({"message": "Blockchain synchronized successfully."}), 200
     return jsonify({"error": "No longer chain found or sync failed."}), 400
+    
+@app.route('/execute_contract_call', methods=['GET'])
+def execute_contract_call():
+    """Execute a smart contract function without modifying state (read-only calls)."""
+    contract_name = request.args.get('contract_name')
+    function_name = request.args.get('function_name')
+
+    if not contract_name or not function_name:
+        return jsonify({"error": "Missing contract_name or function_name"}), 400
+
+    if contract_name not in ifchain.contracts:
+        return jsonify({"error": "Contract not found"}), 404
+
+    contract_code = ifchain.contracts[contract_name]["code"]
+    contract_state = ifchain.contracts[contract_name]["state"]
+
+    local_scope = {"state": contract_state}
+    exec(contract_code, {}, local_scope)
+
+    if function_name in local_scope and callable(local_scope[function_name]):
+        result = local_scope[function_name]()
+        return jsonify({"contract": contract_name, "function": function_name, "result": result}), 200
+
+    return jsonify({"error": f"Function {function_name} not found in contract {contract_name}"}), 404
     
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

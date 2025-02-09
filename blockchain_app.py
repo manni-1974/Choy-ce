@@ -228,32 +228,40 @@ class IFChain:
         return True
             
     def force_add_balance(self, wallet_address, token, amount):
+        """Forcefully add balance to a wallet and create a mint transaction."""
+        
         if wallet_address not in self.wallet_balances:
             self.wallet_balances[wallet_address] = {}
-
+        
+        try:
+            amount = float(amount)
+        except ValueError:
+            print(f"Error: Amount must be a valid number, received {amount}")
+            return {"error": "Invalid amount format"}
+        
         self.wallet_balances[wallet_address][token] = self.wallet_balances[wallet_address].get(token, 0) + amount
-
-        print("Balance updated", wallet_address, "now has", self.wallet_balances[wallet_address][token], token)
+        print(f"Balance updated: {wallet_address} now has {self.wallet_balances[wallet_address][token]} {token}")
         
         new_tx = {
             "sender": "SYSTEM",
             "receiver": wallet_address,
             "amount": amount,
             "token": token,
-            "tax": 0,
+            "gas_fee": 0,  # No gas fee for minting
             "net_amount": amount,
-            "hash": hashlib.sha256(f"genesis-{wallet_address}-{time.time()}".encode()).hexdigest(),
+            "hash": hashlib.sha256(f"mint-{wallet_address}-{time.time()}".encode()).hexdigest(),
             "timestamp": time.time(),
-            "gas_fee": 0,
             "tx_type": "mint",
-            "block_confirmations": 1,
-            "status": "confirmed",
+            "block_confirmations": 0,  # It is not yet mined
+            "status": "pending",
             "signatures": []
         }
-
-        self.unconfirmed_transactions.append(new_tx)
-        return True
         
+        self.unconfirmed_transactions.append(new_tx)
+        print(f"Mint transaction added to pool: {new_tx['hash']}")
+
+        return {"message": f"{amount} {token} added to {wallet_address}"}
+
     def proof_of_work(self, block):
         block.nonce = 0
         computed_hash = block.compute_hash()
@@ -463,12 +471,12 @@ class IFChain:
 
         transactions_to_add = self.unconfirmed_transactions.copy()
 
-        gas_collected = 0  # Track total gas fees
+        gas_collected = 0  # Initialize before accumulating gas fees
 
         for tx in transactions_to_add:
             tx["status"] = "confirmed"
             tx["block_confirmations"] = 1
-            gas_collected += tx["tax"]  # Collect gas fees
+            gas_collected += tx["gas_fee"]
         
         new_block = Block(
             index=last_block.index + 1,
@@ -671,7 +679,7 @@ def add_new_transaction():
     instance.unconfirmed_transactions.append(transaction)
     print(f"Transaction added successfully: {transaction}")
 
-    return jsonify({"message": "Transaction added to the pool"}), 201  
+    return jsonify({"message": "Transaction added to the pool"}), 201
     
 @app.route('/mine', methods=['GET'])
 def mine():

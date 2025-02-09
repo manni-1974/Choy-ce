@@ -1,3 +1,17 @@
+git status
+git add .
+git commit -m "Fixed transaction processing and balance update issues"
+git push origin main
+
+
+
+
+
+
+
+
+
+
 def add_new_transaction(self, tx_data):
         print(f"Received transaction: {tx_data}")
         

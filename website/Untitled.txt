@@ -4,6 +4,32 @@ git commit -m "Fixed transaction processing and balance update issues"
 git push origin main
 
 
+revision 2/9/25
+def force_add_balance(self, wallet_address, token, amount):
+        if wallet_address not in self.wallet_balances:
+            self.wallet_balances[wallet_address] = {}
+
+        self.wallet_balances[wallet_address][token] = self.wallet_balances[wallet_address].get(token, 0) + float(amount)
+        print("Balance updated", wallet_address, "now has", self.wallet_balances[wallet_address][token], token)
+        
+        new_tx = {
+            "sender": "SYSTEM",
+            "receiver": wallet_address,
+            "amount": amount,
+            "token": token,
+            "tax": 0,
+            "net_amount": amount,
+            "hash": hashlib.sha256(f"genesis-{wallet_address}-{time.time()}".encode()).hexdigest(),
+            "timestamp": time.time(),
+            "gas_fee": 0,
+            "tx_type": "mint",
+            "block_confirmations": 1,
+            "status": "confirmed",
+            "signatures": []
+        }
+
+        self.unconfirmed_transactions.append(new_tx)
+        return True
 
 
 

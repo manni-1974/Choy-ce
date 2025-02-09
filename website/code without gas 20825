@@ -7,7 +7,7 @@ import schedule
 import threading
 from datetime import datetime
 import requests
-                    
+
 app = Flask(__name__)
 
 ifchain = None
@@ -89,7 +89,6 @@ class IFChain:
         self.minted_tokens = {}
         self.contracts = {}
         self.wallet_balances = {}
-        self.gas_fee = 0.005
         
         self.load_contract_state()
         self.load_blockchain_state()
@@ -186,7 +185,9 @@ class IFChain:
                 block_hash == block.compute_hash())
 
     def add_new_transaction(self, tx_data):
-        print(f"Received transaction: {tx_data}")  # Debugging Log
+        """Adds a new transaction to the unconfirmed transaction pool."""
+        
+        print(f"Received transaction: {tx_data}")
 
         required_fields = ["sender", "receiver", "amount", "token"]
         if not all(field in tx_data for field in required_fields):
@@ -198,13 +199,13 @@ class IFChain:
         amount = tx_data["amount"]
         token = tx_data["token"]
         
-        gas_fee = amount * self.gas_fee
-        net_amount = amount - gas_fee
+        sender_balance_data = self.get_wallet_balance(sender)
+        print(f"Sender balance data: {sender_balance_data}")
 
-        sender_balance = self.get_wallet_balance(sender).get("balance", {}).get(token, 0)
+        sender_balance = sender_balance_data.get("balance", {}).get(token, 0)
 
-        if sender_balance < (amount + gas_fee):
-            print(f"Transaction failed: Insufficient balance for {sender}. Available: {sender_balance}, Required: {amount + gas_fee}")
+        if sender_balance < amount:
+            print(f"Transaction failed: Insufficient funds. Available: {sender_balance}, Required: {amount}")
             return False
 
         transaction = {
@@ -212,8 +213,8 @@ class IFChain:
             "receiver": receiver,
             "amount": amount,
             "token": token,
-            "gas_fee": gas_fee,
-            "net_amount": net_amount,
+            "tax": 0,
+            "net_amount": amount,
             "hash": hashlib.sha256(json.dumps(tx_data, sort_keys=True).encode()).hexdigest(),
             "timestamp": time.time(),
             "tx_type": "transfer",
@@ -463,13 +464,6 @@ class IFChain:
 
         transactions_to_add = self.unconfirmed_transactions.copy()
 
-        gas_collected = 0  # Track total gas fees
-
-        for tx in transactions_to_add:
-            tx["status"] = "confirmed"
-            tx["block_confirmations"] = 1
-            gas_collected += tx["tax"]  # Collect gas fees
-        
         new_block = Block(
             index=last_block.index + 1,
             timestamp=time.time(),
@@ -477,15 +471,15 @@ class IFChain:
             previous_hash=last_block.hash,
             poh_hash=poh_hash
         )
-        
+
         proof = self.proof_of_work(new_block)
         new_block.hash = proof
         self.add_block(new_block, proof)
-        
-        if gas_collected > 0:
-            self.force_add_balance(miner_wallet, gas_collected, "IFC")
-            print(f"Miner {miner_wallet} received {gas_collected} IFC in gas fees.")
-        
+      
+        for tx in transactions_to_add:
+            tx["status"] = "confirmed"
+            tx["block_confirmations"] = 1
+       
         self.unconfirmed_transactions = []
         
         self.broadcast_block(new_block.to_dict())
@@ -507,26 +501,22 @@ class IFChain:
 
                 if tx["receiver"] == wallet_address:
                     balance[token] = balance.get(token, 0) + net_amount
-                    print(f"Adding {net_amount} {token} to {wallet_address} from confirmed transaction.")
-                
+                    print(f"Adding {net_amount} {token} from confirmed transaction.")
                 if tx["sender"] == wallet_address:
                     balance[token] = balance.get(token, 0) - tx["amount"]
-                    print(f"Subtracting {tx['amount']} {token} from {wallet_address} (sent transaction).")
+                    print(f"Subtracting {tx['amount']} {token} from confirmed transaction.")
 
         for tx in self.unconfirmed_transactions:
             print("Checking unconfirmed transactions...")
             token = tx["token"]
-
             if tx["receiver"] == wallet_address:
                 balance[token] = balance.get(token, 0) + tx["net_amount"]
                 print(f"Adding {tx['net_amount']} {token} from unconfirmed transaction.")
-
             if tx["sender"] == wallet_address:
                 balance[token] = balance.get(token, 0) - tx["amount"]
                 print(f"Subtracting {tx['amount']} {token} from unconfirmed transaction.")
 
         balance = {token: round(amount, 6) for token, amount in balance.items()}
-
         print(f"Final balance for {wallet_address}: {balance}")
 
         return {"wallet_address": wallet_address, "balance": balance}
@@ -623,55 +613,25 @@ def apply_inflation():
         return jsonify({"message": "Inflation applied successfully"}), 200
     return jsonify({"error": "Inflation already applied or not available for this year"}), 400
 
-@app.route('/add_new_transaction', methods=['POST'])
-def add_new_transaction():
-    """Adds a new transaction to the unconfirmed transaction pool."""
-
+@app.route('/add_transaction', methods=['POST'])
+def add_transaction():
     tx_data = request.get_json()
-    instance = get_ifchain_instance()
-    
-    print(f"Received transaction: {tx_data}")  # Debugging
-    
+    instance = get_ifchain_instance()  # Ensure using the correct instance
+
+    print(f"Instance ID of ifchain: {id(instance)}")  # Debugging
+
     required_fields = ["sender", "receiver", "amount", "token"]
     if not all(field in tx_data for field in required_fields):
-        print("Transaction failed: Missing required fields.")
-        return jsonify({"error": "Missing required fields"}), 400
+        print("Invalid transaction: Missing required fields")
+        return "Invalid transaction data", 400
 
-    sender = tx_data["sender"]
-    receiver = tx_data["receiver"]
-    amount = tx_data["amount"]
-    token = tx_data["token"]
-    
-    gas_fee = amount * instance.gas_fee
-    net_amount = amount - gas_fee
+    success = instance.add_new_transaction(tx_data)
+    print(f"Transaction processing result: {success}")  # Debugging
+    print(f"Current Unconfirmed Transactions: {instance.unconfirmed_transactions}")  # Debugging
 
-    sender_balance = instance.get_wallet_balance(sender).get("balance", {}).get(token, 0)
-    
-    print(f"Sender balance: {sender_balance} IFC | Required: {amount + gas_fee} IFC")
-
-    if sender_balance < (amount + gas_fee):
-        print("Transaction failed: Insufficient funds.")
-        return jsonify({"error": "Insufficient balance"}), 400
-
-    transaction = {
-        "sender": sender,
-        "receiver": receiver,
-        "amount": amount,
-        "token": token,
-        "gas_fee": gas_fee,
-        "net_amount": net_amount,
-        "hash": hashlib.sha256(json.dumps(tx_data, sort_keys=True).encode()).hexdigest(),
-        "timestamp": time.time(),
-        "tx_type": "transfer",
-        "block_confirmations": 0,
-        "status": "pending",
-        "signatures": []
-    }
-
-    instance.unconfirmed_transactions.append(transaction)
-    print(f"Transaction added successfully: {transaction}")
-
-    return jsonify({"message": "Transaction added to the pool"}), 201  
+    if success:
+        return "Transaction added to the pool", 201
+    return "Transaction invalid", 400
     
 @app.route('/mine', methods=['GET'])
 def mine():
@@ -786,7 +746,7 @@ def update_contract():
 
     return jsonify({
         "message": f"Contract {contract_name} updated successfully.",
-        "versions": len(ifchain.contracts[contract_name]["versions"])
+        "versions": len(ifchain.contracts[contract_name]["versions"])  # ✅ Return the number of versions
     }), 200
 
 @app.route('/unconfirmed_transactions', methods=['GET'])
@@ -892,25 +852,23 @@ def get_wallet_transactions(wallet_address):
     transactions = []
 
     for block in ifchain.chain:
-        try:
-            # Ensure timestamp is always treated as a float
-            block_time = datetime.utcfromtimestamp(float(block.timestamp)).strftime('%Y-%m-%d %H:%M:%S')
-            block_timestamp = datetime.strptime(block_time, '%Y-%m-%d %H:%M:%S')
-        except ValueError:
-            continue  # Skip invalid timestamps
+        block_time = datetime.utcfromtimestamp(int(block.timestamp)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        block_timestamp = datetime.strptime(block_time, '%Y-%m-%d %H:%M:%S')
 
         for tx in block.transactions:
+            
             if wallet_address not in [tx["sender"], tx["receiver"]]:
                 continue
             
             if token_filter and tx["token"] != token_filter:
                 continue
-
+            
             if transaction_type == "sent" and tx["sender"] != wallet_address:
                 continue
             if transaction_type == "received" and tx["receiver"] != wallet_address:
                 continue
-
+            
             if start_date and end_date:
                 try:
                     start_timestamp = datetime.strptime(start_date, "%Y-%m-%d")
@@ -919,7 +877,7 @@ def get_wallet_transactions(wallet_address):
                         continue
                 except ValueError:
                     return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
-
+           
             transactions.append({
                 "transaction_hash": tx["hash"],
                 "block_index": block.index,
@@ -943,10 +901,10 @@ def get_wallet_balance(wallet_address):
     """Retrieve the balance of a specific wallet from the blockchain"""
     
     balance = ifchain.get_wallet_balance(wallet_address)  # Ensure it calls blockchain method
-    print(f"API Debug: Balance for {wallet_address}: {balance}")  # Debugging
+    print(f"API Wallet Balance Response: {balance}")  # Debugging
     
     return jsonify(balance), 200
-
+    
 @app.route('/search_transactions', methods=['GET'])
 def search_transactions():
     """Search transactions by sender, receiver, token type, or all."""
@@ -1320,12 +1278,5 @@ def api_force_add_balance():
         return jsonify({"message": f"{amount} {token} added to {wallet_address}"}), 200
     return jsonify({"error": "Failed to add balance"}), 400
     
-@app.route('/gas_fee', methods=['GET'])
-def get_gas_fee():
-    instance = get_ifchain_instance()
-    return jsonify({"gas_fee": instance.gas_fee}), 200
-    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
-
-

@@ -60,5 +60,13 @@
         "owner": "wallet5",
         "logs": [],
         "expiration": null
+    },
+    "NewTestContract": {
+        "code": "global state\nstate = {}\ndef test(): return \"Hello, IFChain!\"",
+        "state": {},
+        "state_versions": [],
+        "owner": "wallet1",
+        "logs": [],
+        "expiration": null
     }
 }

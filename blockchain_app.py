@@ -367,19 +367,20 @@ class IFChain:
 
     def execute_contract(self, contract_name, function_name, params, sender=None, readonly=False):
         """Execute or call a smart contract function.
-        
+
         - If `readonly=True`, it will execute the function **without modifying state** or charging gas.
         - If `readonly=False`, it will execute **with state modification** and charge gas fees.
         """
-        
+
         if contract_name not in self.contracts:
             return jsonify({"error": "Contract not found"}), 404
 
-        contract_code = self.contracts[contract_name]["code"]
-        contract_state = self.contracts[contract_name]["state"]
+        contract_data = self.contracts[contract_name]
+        contract_code = contract_data["code"]
+        contract_state = contract_data["state"]
 
-        if "logs" not in self.contracts[contract_name]:
-            self.contracts[contract_name]["logs"] = []
+        if "logs" not in contract_data:
+            contract_data["logs"] = []
 
         local_scope = {"state": contract_state}
 
@@ -388,29 +389,44 @@ class IFChain:
 
             if function_name in local_scope and callable(local_scope[function_name]):
                 if readonly:
-                    
                     result = local_scope[function_name](**params)
                     return jsonify({
                         "message": f"Function {function_name} executed successfully (readonly).",
                         "result": result
                     }), 200
-                
+
+                # Gas fee calculation
                 gas_fee = self.GAS_FEE_PER_CONTRACT_EXECUTION
                 sender_balance = self.get_wallet_balance(sender).get("balance", {}).get("IFC", 0)
 
                 if sender_balance < gas_fee:
                     return jsonify({"error": "Insufficient balance for gas fee"}), 400
-                
-                for block in self.chain:
-                    for tx in block.transactions:
-                        if tx["sender"] == sender:
-                            tx["amount"] -= gas_fee
-                            tx["net_amount"] -= gas_fee
-               
+
+                # Deduct gas fees and modify blockchain transactions
+                gas_transaction = {
+                    "sender": sender,
+                    "receiver": "MINER_POOL",
+                    "amount": gas_fee,
+                    "token": "IFC",
+                    "gas_fee": gas_fee,
+                    "net_amount": -gas_fee,
+                    "hash": hashlib.sha256(f"gas-{sender}-{time.time()}".encode()).hexdigest(),
+                    "timestamp": time.time(),
+                    "tx_type": "gas_fee",
+                    "block_confirmations": 0,
+                    "status": "pending",
+                    "signatures": []
+                }
+
+                # Add gas fee transaction to pending transactions
+                self.unconfirmed_transactions.append(gas_transaction)
+
+                # Execute the contract function with state modification
                 result = local_scope[function_name](**params)
-                self.contracts[contract_name]["state"] = local_scope["state"]
-                
-                self.contracts[contract_name]["logs"].append({
+                contract_data["state"] = local_scope["state"]
+
+                # Log contract execution
+                contract_data["logs"].append({
                     "timestamp": time.time(),
                     "function": function_name,
                     "params": params,
@@ -427,7 +443,7 @@ class IFChain:
                     "gas_fee_deducted": gas_fee
                 }), 200
 
-            return jsonify({"error": "Function not found"}), 400
+            return jsonify({"error": "Function not found in contract"}), 400
 
         except Exception as e:
             return jsonify({"error": f"Contract execution failed: {str(e)}"}), 400
@@ -748,15 +764,95 @@ def api_deploy_contract():
         return jsonify({"message": f"Contract {contract_name} deployed successfully by {owner}."}), 200
 
     return jsonify({"error": "Contract deployment failed."}), 400
+
+
+@app.route('/contract_code/<contract_name>', methods=['GET'])
+def get_contract_code(contract_name):
+    """Fetch the stored code of a specific smart contract."""
+    if contract_name in ifchain.contracts:
+        return jsonify({
+            "contract_name": contract_name,
+            "code": ifchain.contracts[contract_name]["code"]
+        }), 200
+    return jsonify({"error": "Contract not found"}), 404
     
 @app.route('/execute_contract', methods=['POST'])
-def api_execute_contract():
+def execute_contract():
+    """Execute a function from a deployed smart contract, applying gas fees and state updates."""
     data = request.get_json()
-    if "contract_name" not in data or "function_name" not in data or "params" not in data:
+
+    # Check required fields
+    required_fields = ["contract_name", "function", "params", "caller"]
+    if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing contract execution details"}), 400
-    if ifchain.execute_contract(data["contract_name"], data["function_name"], data["params"]):
-        return jsonify({"message": f"Function {data['function_name']} executed in {data['contract_name']}."}), 200
-    return jsonify({"error": "Contract execution failed."}), 400
+
+    contract_name = data["contract_name"]
+    function_name = data["function"]
+    params = data["params"]
+    caller = data["caller"]
+
+    if contract_name not in ifchain.contracts:
+        return jsonify({"error": "Contract not found"}), 404
+
+    contract_code = ifchain.contracts[contract_name]["code"]
+    contract_state = ifchain.contracts[contract_name]["state"]
+
+    # Ensure contract logs exist
+    if "logs" not in ifchain.contracts[contract_name]:
+        ifchain.contracts[contract_name]["logs"] = []
+
+    # Load contract functions dynamically
+    local_scope = {"state": contract_state}
+    try:
+        exec(contract_code, {}, local_scope)  # Execute contract code
+    except Exception as e:
+        return jsonify({"error": f"Failed to load contract code: {str(e)}"}), 400
+
+    # Ensure the function exists
+    if function_name not in local_scope or not callable(local_scope[function_name]):
+        return jsonify({"error": f"Function '{function_name}' not found in contract"}), 400
+
+    # Charge gas fee
+    gas_fee = ifchain.GAS_FEE_PER_CONTRACT_EXECUTION
+    caller_balance = ifchain.get_wallet_balance(caller).get("balance", {}).get("IFC", 0)
+
+    if caller_balance < gas_fee:
+        return jsonify({"error": "Insufficient balance for gas fee"}), 400
+
+    # Deduct gas fee from caller's wallet
+    ifchain.force_add_balance(caller, -gas_fee, "IFC")
+
+    try:
+        # Execute contract function
+        result = local_scope[function_name](**params)
+
+        # Ensure the contract state is updated
+        ifchain.contracts[contract_name]["state"] = local_scope["state"]
+
+        # Log execution details
+        execution_log = {
+            "timestamp": time.time(),
+            "contract_name": contract_name,
+            "function": function_name,
+            "params": params,
+            "result": result,
+            "executed_by": caller,
+            "gas_fee": gas_fee
+        }
+        ifchain.contracts[contract_name]["logs"].append(execution_log)
+
+        # Save contract state after execution
+        ifchain.save_contract_state()
+
+        return jsonify({
+            "message": f"Function '{function_name}' executed successfully.",
+            "result": result,
+            "gas_fee_deducted": gas_fee,
+            "log_entry": execution_log
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Contract execution failed: {str(e)}"}), 400
  
 @app.route('/update_contract', methods=['PUT'])
 def update_contract():
@@ -796,7 +892,7 @@ def update_contract():
         "message": f"Contract {contract_name} updated successfully.",
         "versions": len(ifchain.contracts[contract_name]["versions"])
     }), 200
-
+   
 @app.route('/unconfirmed_transactions', methods=['GET'])
 def get_unconfirmed_transactions():
     """Retrieve the list of pending transactions waiting to be mined."""
@@ -847,13 +943,24 @@ def get_contract_versions(contract_name):
     
 @app.route('/contract_logs/<contract_name>', methods=['GET'])
 def get_contract_logs(contract_name):
-    """Fetch execution logs of a specific contract."""
-    if contract_name in ifchain.contracts and "logs" in ifchain.contracts[contract_name]:
+    """Fetch execution logs of a specific smart contract, ensuring past features are retained."""
+    
+    if contract_name not in ifchain.contracts:
+        return jsonify({"error": "Contract not found"}), 404
+    
+    contract_data = ifchain.contracts[contract_name]
+    
+    if "logs" not in contract_data or not contract_data["logs"]:
         return jsonify({
             "contract_name": contract_name,
-            "logs": ifchain.contracts[contract_name]["logs"]
+            "logs": [],
+            "message": "No logs found for this contract."
         }), 200
-    return jsonify({"error": "No logs found for this contract"}), 404
+    
+    return jsonify({
+        "contract_name": contract_name,
+        "logs": contract_data["logs"]
+    }), 200
     
 @app.route('/contracts', methods=['GET'])
 def get_all_contracts():

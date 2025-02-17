@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Explorer</title>
+    <!-- Add Tailwind CSS link -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Add Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Navigation Bar -->
+    <nav class="bg-white p-4 shadow-md">
+        <div class="container mx-auto text-center">
+            <ul class="flex justify-center space-x-8">
+                <li><a href="#" class="text-black text-lg font-semibold">Home</a></li>
+                <li><a href="#" class="text-black text-lg font-semibold">Developers</a></li>
+                <li><a href="#" class="text-black text-lg font-semibold">Arena</a></li>
+                <li><a href="#" class="text-black text-lg font-semibold">Projects</a></li>
+                <li><a href="#" class="text-black text-lg font-semibold">Community</a></li>
+                <li><a href="#" class="text-black text-lg font-semibold">About</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Search Box for Transactions -->
+    <section class="container mx-auto p-6">
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-semibold text-center mb-4">Search for Transaction</h2>
+            <div class="flex justify-center">
+                <!-- Search Box with icon inside -->
+                <div class="relative w-2/3">
+                    <!-- Search Icon inside the input field -->
+                    <div class="absolute left-3 top-1/2 transform -translate-y-1/2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-search text-gray-500" viewBox="0 0 16 16">
+                            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
+                        </svg>
+                    </div>
+                    <!-- Input Field -->
+                    <input type="text" placeholder="Enter transaction hash" class="w-full pl-10 p-3 border border-gray-300 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Section -->
+    <main class="flex-grow container mx-auto p-6">
+        <!-- 4 Boxes in a grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            <!-- Wallet Overview Box -->
+            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-wallet2 text-gray-600 mr-2" viewBox="0 0 16 16">
+                    <path d="M12.136.326A1.5 1.5 0 0 1 14 1.78V3h.5A1.5 1.5 0 0 1 16 4.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 13.5v-9a1.5 1.5 0 0 1 1.432-1.499zM5.562 3H13V1.78a.5.5 0 0 0-.621-.484zM1.5 4a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5z"/>
+                </svg>
+                <div>
+                    <h2 class="text-xl font-semibold">Wallet Overview</h2>
+                    <p class="mt-2">Total: 0</p>
+                </div>
+            </div>
+            <!-- Transactions Box -->
+            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-cash-coin text-gray-600 mr-2" viewBox="0 0 16 16">
+                    <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM7 4h2v4H7V4zm0 5h2v4H7V9z"/>
+                </svg>
+                <div>
+                    <h2 class="text-xl font-semibold">Transactions</h2>
+                    <p class="mt-2">Total: 0</p>
+                </div>
+            </div>
+            <!-- Latest Block Box -->
+            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-blockquote-right text-gray-600 mr-2" viewBox="0 0 16 16">
+                    <path d="M7 0h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V1a1 1 0 0 1 1-1zm0 1v12h8V1H7z"/>
+                </svg>
+                <div>
+                    <h2 class="text-xl font-semibold">Latest Block</h2>
+                    <p class="mt-2">Total: 0</p>
+                </div>
+            </div>
+            <!-- Nodes Box -->
+            <div class="bg-white p-4 rounded-lg shadow-lg flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-people text-gray-600 mr-2" viewBox="0 0 16 16">
+                    <path d="M8 0a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM4.5 9a2.5 2.5 0 0 0-2.5 2.5c0 1.333.67 2.5 2.5 2.5h7a2.5 2.5 0 0 0 2.5-2.5C12.5 9.67 11.83 9 10 9H4.5z"/>
+                </svg>
+                <div>
+                    <h2 class="text-xl font-semibold">Nodes</h2>
+                    <p class="mt-2">Total: 0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Box for Daily Transactions Chart -->
+        <div class="bg-white p-4 rounded-lg shadow-lg flex items-center col-span-4">
+            <h2 class="text-xl font-semibold">Daily Transactions</h2>
+            <!-- Canvas for the chart -->
+            <canvas id="transactionChart" width="400" height="100"></canvas>
+        </div>
+
+        <!-- New Box for Transaction Details Table -->
+        <section class="container mx-auto p-6">
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold text-center mb-4">Transaction Details</h2>
+                <!-- Table for Transaction Fields -->
+                <table class="min-w-full table-auto">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Hash</th>
+                            <th class="px-4 py-2 text-left">Block No.</th>
+                            <th class="px-4 py-2 text-left">From</th>
+                            <th class="px-4 py-2 text-left">To</th>
+                            <th class="px-4 py-2 text-left">Tax</th>
+                            <th class="px-4 py-2 text-left">Value</th>
+                            <th class="px-4 py-2 text-left">Token</th>
+                            <th class="px-4 py-2 text-left">Date</th> <!-- New Date Column -->
+                            <th class="px-4 py-2 text-left">Transaction Count</th> <!-- New Count Column -->
+                        </tr>
+                    </thead>
+                    <tbody id="transactionTableBody">
+                        <!-- Transactions will be dynamically inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="bg-gray-800 text-white text-center p-4">
+        <p>&copy; 2025 Blockchain Explorer. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Fetch the transaction data from the backend
+        fetch('http://localhost:3000/api/transactions')
+            .then(response => response.json())
+            .then(data => {
+                // Process data for the chart
+                const labels = data.map(item => item.date);  // Dates for the X-axis
+                const transactionCounts = data.map(item => item.count);  // Transaction counts for the Y-axis
+
+                // Get the canvas element
+                const ctx = document.getElementById('transactionChart').getContext('2d');
+
+                // Create the chart
+                const transactionChart = new Chart(ctx, {
+                    type: 'line',  // You can change this to 'bar' if you'd prefer a bar chart
+                    data: {
+                        labels: labels,  // X-axis: Dates
+                        datasets: [{
+                            label: 'Number of Transactions',
+                            data: transactionCounts,  // Y-axis: Transaction counts
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            fill: true,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Date'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Transactions'
+                                },
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+
+                // Populate the Transaction Details Table
+                const tableBody = document.getElementById('transactionTableBody');
+                data.forEach(transaction => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-4 py-2">${transaction.hash}</td>
+                        <td class="px-4 py-2">${transaction.blockNo}</td>
+                        <td class="px-4 py-2">${transaction.from}</td>
+                        <td class="px-4 py-2">${transaction.to}</td>
+                        <td class="px-4 py-2">${transaction.tax}</td>
+                        <td class="px-4 py-2">${transaction.value}</td>
+                        <td class="px-4 py-2">${transaction.token}</td>
+                        <td class="px-4 py-2">${transaction.date}</td> <!-- New Date Data -->
+                        <td class="px-4 py-2">${transaction.count}</td> <!-- New Count Data -->
+                    `;
+                    tableBody.appendChild(row);
+                });
+            })
+            .catch(error => console.error('Error fetching transaction data:', error));
+    </script>
+</body>
+</html>

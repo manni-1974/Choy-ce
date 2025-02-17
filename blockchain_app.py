@@ -1440,6 +1440,10 @@ def get_gas_fee():
     instance = get_ifchain_instance()
     return jsonify({"gas_fee": instance.gas_fee}), 200
     
+@app.route('/blockchain', methods=['GET'])
+def get_blockchain():
+    return get_chain()
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
 

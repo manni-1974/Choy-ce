@@ -7,7 +7,7 @@ import schedule
 import threading
 from datetime import datetime
 import requests
-                    
+
 app = Flask(__name__)
 
 ifchain = None
@@ -73,6 +73,12 @@ class IFChain:
     GAS_FEE_PER_TRANSACTION = 0.001
     GAS_FEE_PER_CONTRACT_EXECUTION = 0.002
     
+class IFChain:
+    difficulty = 2
+    transaction_tax_rate = 0.03
+    GAS_FEE_PER_TRANSACTION = 0.001
+    GAS_FEE_PER_CONTRACT_EXECUTION = 0.002
+    
     def __init__(self):
         self.CONTRACT_STATE_FILE = "contract_states.json"
         self.BLOCKCHAIN_FILE = "blockchain.json"
@@ -80,7 +86,6 @@ class IFChain:
         self.chain = []
         self.peers = set()
         self.poh = PoH()
-        self.create_genesis_block()
         self.token_supply = 500_000_000
         self.frozen_tokens = {}
         self.burned_tokens = 0
@@ -90,11 +95,20 @@ class IFChain:
         self.contracts = {}
         self.wallet_balances = {}
         self.gas_fee = 0.005
-        
+
         self.load_contract_state()
-        self.load_blockchain_state()
+
+        # ✅ Prevent Genesis Block Overwriting
+        if not os.path.exists(self.BLOCKCHAIN_FILE) or os.stat(self.BLOCKCHAIN_FILE).st_size == 0:
+            print("DEBUG: No blockchain file found, creating genesis block.")
+            self.create_genesis_block()
+            self.save_blockchain_state()  # Save the new blockchain file
+        else:
+            print("DEBUG: Blockchain file exists, loading from storage.")
+            self.load_blockchain_state()
+
         self.sync_chain()
-        
+     
     def sync_chain(self):
         """Fetches the longest blockchain from peers and updates local chain if needed."""
         longest_chain = None
@@ -149,13 +163,33 @@ class IFChain:
         
     def load_blockchain_state(self):
         if os.path.exists(self.BLOCKCHAIN_FILE):
-            with open(self.BLOCKCHAIN_FILE, "r") as f:
-                chain_data = json.load(f)
-                self.chain = [Block(**block) for block in chain_data]
-            print("Blockchain state loaded from file")
-            print("Loaded blockchain", self.chain)
+            try:
+                print("DEBUG: Loading blockchain from file...")
+                with open(self.BLOCKCHAIN_FILE, "r") as f:
+                    chain_data = json.load(f)
+
+                if not chain_data:
+                    print("WARNING: blockchain.json is empty!")
+                    return
+
+                self.chain = [Block(
+                    index=block["index"],
+                    timestamp=block["timestamp"],
+                    transactions=block["transactions"],
+                    previous_hash=block["previous_hash"],
+                    poh_hash=block["poh_hash"],
+                    nonce=block["nonce"],
+                    hash=block["hash"]
+                ) for block in chain_data]
+
+                print(f"DEBUG: Loaded {len(self.chain)} blocks from file.")
+
+            except json.JSONDecodeError:
+                print("ERROR: Corrupted blockchain file! Resetting to genesis block.")
+                self.chain = [self.create_genesis_block()]
         else:
-            print("No blockchain file found. Using existing genesis block")
+            print("WARNING: No blockchain file found. Creating new genesis block.")
+            self.chain = [self.create_genesis_block()]
 
     def save_blockchain_state(self):
         with open(self.BLOCKCHAIN_FILE, "w") as f:
@@ -479,7 +513,7 @@ class IFChain:
         """Mine a new block if there are pending transactions and reward the miner."""
 
         if not self.unconfirmed_transactions:
-            print("No transactions available to mine.")
+            print("DEBUG: No transactions available to mine.")
             return "No transactions to mine"
 
         last_block = self.last_block()
@@ -487,13 +521,15 @@ class IFChain:
 
         transactions_to_add = self.unconfirmed_transactions.copy()
 
-        gas_collected = 0  # Initialize before accumulating gas fees
+        print(f"DEBUG: Transactions being added to block: {transactions_to_add}")
+
+        gas_collected = 0
 
         for tx in transactions_to_add:
             tx["status"] = "confirmed"
             tx["block_confirmations"] = 1
-            gas_collected += tx["gas_fee"]
-        
+            gas_collected += tx.get("gas_fee", 0)
+
         new_block = Block(
             index=last_block.index + 1,
             timestamp=time.time(),
@@ -505,55 +541,59 @@ class IFChain:
         proof = self.proof_of_work(new_block)
         new_block.hash = proof
         self.add_block(new_block, proof)
-        
-        if gas_collected > 0:
-            self.force_add_balance(miner_wallet, gas_collected, "IFC")
-            print(f"Miner {miner_wallet} received {gas_collected} IFC in gas fees.")
-        
+
+        print(f"DEBUG: Mined Block {new_block.index} - Hash: {new_block.hash}")
+        print(f"DEBUG: Total Blocks in Memory after mining: {len(self.chain)}")
+
         self.unconfirmed_transactions = []
-        
-        self.broadcast_block(new_block.to_dict())
+        self.save_blockchain_state()
 
         return f"Block {new_block.index} mined with {len(transactions_to_add)} transactions."
+
     
     def get_wallet_balance(self, wallet_address):
         """Retrieve the balance of tokens for a specific wallet from the chain"""
-        
+
         balance = {}
 
         print(f"Fetching balance for {wallet_address} from blockchain...")
 
+        # ✅ Check confirmed transactions in the blockchain
         for block in self.chain:
             print(f"Checking block {block.index}...")
             for tx in block.transactions:
-                token = tx["token"]
-                net_amount = tx["net_amount"]
+                token = tx.get("token", "IFC")  # Default to IFC if token key is missing
+                net_amount = tx.get("net_amount", tx.get("amount", 0))  # Prevent KeyError
 
-                if tx["receiver"] == wallet_address:
+                if tx.get("receiver") == wallet_address:
                     balance[token] = balance.get(token, 0) + net_amount
                     print(f"Adding {net_amount} {token} to {wallet_address} from confirmed transaction.")
-                
-                if tx["sender"] == wallet_address:
-                    balance[token] = balance.get(token, 0) - tx["amount"]
-                    print(f"Subtracting {tx['amount']} {token} from {wallet_address} (sent transaction).")
 
+                if tx.get("sender") == wallet_address:
+                    balance[token] = balance.get(token, 0) - tx.get("amount", 0)  # Prevent KeyError
+                    print(f"Subtracting {tx.get('amount', 0)} {token} from {wallet_address} (sent transaction).")
+
+        # ✅ Check pending (unconfirmed) transactions
         for tx in self.unconfirmed_transactions:
             print("Checking unconfirmed transactions...")
-            token = tx["token"]
+            token = tx.get("token", "IFC")
+            net_amount = tx.get("net_amount", tx.get("amount", 0))  # Prevent KeyError
 
-            if tx["receiver"] == wallet_address:
-                balance[token] = balance.get(token, 0) + tx["net_amount"]
-                print(f"Adding {tx['net_amount']} {token} from unconfirmed transaction.")
+            if tx.get("receiver") == wallet_address:
+                balance[token] = balance.get(token, 0) + net_amount
+                print(f"Adding {net_amount} {token} from unconfirmed transaction.")
 
-            if tx["sender"] == wallet_address:
-                balance[token] = balance.get(token, 0) - tx["amount"]
-                print(f"Subtracting {tx['amount']} {token} from unconfirmed transaction.")
+            if tx.get("sender") == wallet_address:
+                balance[token] = balance.get(token, 0) - tx.get("amount", 0)  # Prevent KeyError
+                print(f"Subtracting {tx.get('amount', 0)} {token} from unconfirmed transaction.")
 
+        # ✅ Round final balance for better readability
         balance = {token: round(amount, 6) for token, amount in balance.items()}
 
         print(f"Final balance for {wallet_address}: {balance}")
 
         return {"wallet_address": wallet_address, "balance": balance}
+
                         
     def update_contract(self, contract_name, new_code, sender):
         """Update an existing smart contract with ownership verification."""
@@ -1444,6 +1484,12 @@ def get_gas_fee():
 def get_blockchain():
     return get_chain()
     
+@app.route('/save_blockchain', methods=['POST'])
+def save_blockchain():
+    global blockchain  # Ensure Flask recognizes the blockchain instance
+    blockchain.save_blockchain_state()
+    return jsonify({"message": "Blockchain state saved successfully"}), 200
+  
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
 

@@ -1,0 +1,118 @@
+class IFChain:
+    difficulty = 2
+    transaction_tax_rate = 0.03
+    GAS_FEE_PER_TRANSACTION = 0.001
+    GAS_FEE_PER_CONTRACT_EXECUTION = 0.002
+    
+    def __init__(self):
+        self.CONTRACT_STATE_FILE = "contract_states.json"
+        self.BLOCKCHAIN_FILE = "blockchain.json"
+        self.unconfirmed_transactions = []
+        self.chain = []
+        self.peers = set()
+        self.poh = PoH()
+        self.create_genesis_block()
+        self.token_supply = 500_000_000
+        self.frozen_tokens = {}
+        self.burned_tokens = 0
+        self.inflation_schedule = self.generate_inflation_schedule()
+        self.applied_inflation_years = set()
+        self.minted_tokens = {}
+        self.contracts = {}
+        self.wallet_balances = {}
+        self.gas_fee = 0.005
+        
+        self.load_contract_state()
+        self.load_blockchain_state()
+        self.sync_chain()
+
+
+def get_wallet_balance(self, wallet_address):
+        """Retrieve the balance of tokens for a specific wallet from the chain"""
+        
+        balance = {}
+
+        print(f"Fetching balance for {wallet_address} from blockchain...")
+
+        for block in self.chain:
+            print(f"Checking block {block.index}...")
+            for tx in block.transactions:
+                token = tx["token"]
+                net_amount = tx["net_amount"]
+
+                if tx["receiver"] == wallet_address:
+                    balance[token] = balance.get(token, 0) + net_amount
+                    print(f"Adding {net_amount} {token} to {wallet_address} from confirmed transaction.")
+                
+                if tx["sender"] == wallet_address:
+                    balance[token] = balance.get(token, 0) - tx["amount"]
+                    print(f"Subtracting {tx['amount']} {token} from {wallet_address} (sent transaction).")
+
+        for tx in self.unconfirmed_transactions:
+            print("Checking unconfirmed transactions...")
+            token = tx["token"]
+
+            if tx["receiver"] == wallet_address:
+                balance[token] = balance.get(token, 0) + tx["net_amount"]
+                print(f"Adding {tx['net_amount']} {token} from unconfirmed transaction.")
+
+            if tx["sender"] == wallet_address:
+                balance[token] = balance.get(token, 0) - tx["amount"]
+                print(f"Subtracting {tx['amount']} {token} from unconfirmed transaction.")
+
+        balance = {token: round(amount, 6) for token, amount in balance.items()}
+
+        print(f"Final balance for {wallet_address}: {balance}")
+
+
+def load_blockchain_state(self):
+        if os.path.exists(self.BLOCKCHAIN_FILE):
+            with open(self.BLOCKCHAIN_FILE, "r") as f:
+                chain_data = json.load(f)
+                self.chain = [Block(**block) for block in chain_data]
+            print("Blockchain state loaded from file")
+            print("Loaded blockchain", self.chain)
+        else:
+            print("No blockchain file found. Using existing genesis block")
+        return {"wallet_address": wallet_address, "balance": balance}
+
+def mine(self, miner_wallet):
+        """Mine a new block if there are pending transactions and reward the miner."""
+
+        if not self.unconfirmed_transactions:
+            print("No transactions available to mine.")
+            return "No transactions to mine"
+
+        last_block = self.last_block()
+        poh_hash = self.poh.current_hash
+
+        transactions_to_add = self.unconfirmed_transactions.copy()
+
+        gas_collected = 0  # Initialize before accumulating gas fees
+
+        for tx in transactions_to_add:
+            tx["status"] = "confirmed"
+            tx["block_confirmations"] = 1
+            gas_collected += tx["gas_fee"]
+        
+        new_block = Block(
+            index=last_block.index + 1,
+            timestamp=time.time(),
+            transactions=transactions_to_add,
+            previous_hash=last_block.hash,
+            poh_hash=poh_hash
+        )
+        
+        proof = self.proof_of_work(new_block)
+        new_block.hash = proof
+        self.add_block(new_block, proof)
+        
+        if gas_collected > 0:
+            self.force_add_balance(miner_wallet, gas_collected, "IFC")
+            print(f"Miner {miner_wallet} received {gas_collected} IFC in gas fees.")
+        
+        self.unconfirmed_transactions = []
+        
+        self.broadcast_block(new_block.to_dict())
+
+        return f"Block {new_block.index} mined with {len(transactions_to_add)} transactions."

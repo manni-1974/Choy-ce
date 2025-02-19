@@ -78,6 +78,7 @@ class IFChain:
         self.port = port
         self.CONTRACT_STATE_FILE = "contract_states.json"
         self.BLOCKCHAIN_FILE = "blockchain.json"
+        self.PENDING_TRANSACTIONS_FILE = "pending_transactions.json"
         self.unconfirmed_transactions = []
         self.chain = []
         self.peers = set()
@@ -92,6 +93,8 @@ class IFChain:
         self.wallet_balances = {}
         self.gas_fee = 0.005
 
+        self.load_wallet_balances()
+        self.load_unconfirmed_transactions()
         self.load_contract_state()
         self.load_peers()
         
@@ -289,8 +292,11 @@ class IFChain:
         }
 
         self.unconfirmed_transactions.append(transaction)
+        self.save_unconfirmed_transactions()
+        
         print(f"Transaction added successfully: {transaction}")
-
+        print(f"DEBUG: Current Unconfirmed Transactions: {self.unconfirmed_transactions}")
+        
         # ✅ New Debug Logs to Ensure Transaction is Broadcasted
         print("Now broadcasting transaction to peers...")
         self.broadcast_transaction(transaction)
@@ -303,16 +309,20 @@ class IFChain:
         
         if wallet_address not in self.wallet_balances:
             self.wallet_balances[wallet_address] = {}
-        
+
         try:
             amount = float(amount)
         except ValueError:
             print(f"Error: Amount must be a valid number, received {amount}")
             return {"error": "Invalid amount format"}
-        
+
+        # ✅ Update balance
         self.wallet_balances[wallet_address][token] = self.wallet_balances[wallet_address].get(token, 0) + amount
         print(f"Balance updated: {wallet_address} now has {self.wallet_balances[wallet_address][token]} {token}")
-        
+
+        # ✅ Save balance persistently
+        self.save_wallet_balances()
+
         new_tx = {
             "sender": "SYSTEM",
             "receiver": wallet_address,
@@ -327,11 +337,49 @@ class IFChain:
             "status": "pending",
             "signatures": []
         }
-        
+
         self.unconfirmed_transactions.append(new_tx)
         print(f"Mint transaction added to pool: {new_tx['hash']}")
 
         return {"message": f"{amount} {token} added to {wallet_address}"}
+
+    def save_pending_transactions(self):
+        """Save unconfirmed transactions to a file for persistence."""
+        with open("pending_transactions.json", "w") as f:
+            json.dump(self.unconfirmed_transactions, f)
+        print("DEBUG: Pending transactions saved.")
+
+    def load_pending_transactions(self):
+        """Load unconfirmed transactions from a file."""
+        if os.path.exists("pending_transactions.json"):
+            with open("pending_transactions.json", "r") as f:
+                try:
+                    self.unconfirmed_transactions = json.load(f)
+                except json.JSONDecodeError:
+                    print("ERROR: Corrupted pending transactions file, resetting.")
+                    self.unconfirmed_transactions = []
+        else:
+            self.unconfirmed_transactions = []
+        print("DEBUG: Pending transactions loaded.")
+        
+    def save_unconfirmed_transactions(self):
+        """Save unconfirmed transactions to a file to persist across restarts."""
+        with open(self.PENDING_TRANSACTIONS_FILE, "w") as f:
+            json.dump(self.unconfirmed_transactions, f)
+        print("DEBUG: Saved pending transactions to file.")
+
+    def load_unconfirmed_transactions(self):
+        """Load unconfirmed transactions from file at startup."""
+        if os.path.exists(self.PENDING_TRANSACTIONS_FILE):
+            try:
+                with open(self.PENDING_TRANSACTIONS_FILE, "r") as f:
+                    self.unconfirmed_transactions = json.load(f)
+                print("DEBUG: Loaded pending transactions from file.")
+            except json.JSONDecodeError:
+                print("ERROR: Corrupt pending transactions file! Resetting list.")
+                self.unconfirmed_transactions = []
+        else:
+            self.unconfirmed_transactions = []
 
     def proof_of_work(self, block):
         block.nonce = 0
@@ -548,6 +596,9 @@ class IFChain:
             
     def mine(self, miner_wallet):
         """Mine a new block if there are pending transactions and reward the miner."""
+        
+        print("DEBUG: Mining started...")
+        print("DEBUG: Current pending transactions BEFORE mining:", self.unconfirmed_transactions)  # 🔍 Debugging
 
         if not self.unconfirmed_transactions:
             print("DEBUG: No transactions available to mine.")
@@ -557,7 +608,6 @@ class IFChain:
         poh_hash = self.poh.current_hash
 
         transactions_to_add = self.unconfirmed_transactions.copy()
-
         print(f"DEBUG: Transactions being added to block: {transactions_to_add}")
 
         gas_collected = 0
@@ -574,7 +624,7 @@ class IFChain:
             previous_hash=last_block.hash,
             poh_hash=poh_hash
         )
-        
+
         proof = self.proof_of_work(new_block)
         new_block.hash = proof
         self.add_block(new_block, proof)
@@ -582,20 +632,28 @@ class IFChain:
         print(f"DEBUG: Mined Block {new_block.index} - Hash: {new_block.hash}")
         print(f"DEBUG: Total Blocks in Memory after mining: {len(self.chain)}")
 
-        self.unconfirmed_transactions = []
+        self.unconfirmed_transactions = []  # Clear mined transactions
         self.save_blockchain_state()
+
+        print("DEBUG: Current pending transactions AFTER mining:", self.unconfirmed_transactions)  # 🔍 Debugging
 
         return f"Block {new_block.index} mined with {len(transactions_to_add)} transactions."
 
+
     
     def get_wallet_balance(self, wallet_address):
-        """Retrieve the balance of tokens for a specific wallet from the chain"""
+        """Retrieve the balance of tokens for a specific wallet from the chain and saved balances."""
 
         balance = {}
 
-        print(f"Fetching balance for {wallet_address} from blockchain...")
+        print(f"Fetching balance for {wallet_address} from stored wallet balances and blockchain...")
 
-        # ✅ Check confirmed transactions in the blockchain
+        # ✅ Step 1: Check saved wallet balances first
+        if wallet_address in self.wallet_balances:
+            balance = self.wallet_balances[wallet_address].copy()  # Get saved balances
+            print(f"Loaded stored balance for {wallet_address}: {balance}")
+
+        # ✅ Step 2: Check confirmed transactions in the blockchain
         for block in self.chain:
             print(f"Checking block {block.index}...")
             for tx in block.transactions:
@@ -610,7 +668,7 @@ class IFChain:
                     balance[token] = balance.get(token, 0) - tx.get("amount", 0)  # Prevent KeyError
                     print(f"Subtracting {tx.get('amount', 0)} {token} from {wallet_address} (sent transaction).")
 
-        # ✅ Check pending (unconfirmed) transactions
+        # ✅ Step 3: Check pending (unconfirmed) transactions
         for tx in self.unconfirmed_transactions:
             print("Checking unconfirmed transactions...")
             token = tx.get("token", "IFC")
@@ -624,12 +682,35 @@ class IFChain:
                 balance[token] = balance.get(token, 0) - tx.get("amount", 0)  # Prevent KeyError
                 print(f"Subtracting {tx.get('amount', 0)} {token} from unconfirmed transaction.")
 
-        # ✅ Round final balance for better readability
+        # ✅ Step 4: Round final balance for better readability
         balance = {token: round(amount, 6) for token, amount in balance.items()}
 
         print(f"Final balance for {wallet_address}: {balance}")
 
         return {"wallet_address": wallet_address, "balance": balance}
+        
+    def load_wallet_balances(self):
+        """Load wallet balances from a JSON file."""
+        if os.path.exists("wallet_balances.json"):
+            try:
+                with open("wallet_balances.json", "r") as f:
+                    self.wallet_balances = json.load(f)
+                print(f"DEBUG: Loaded wallet balances: {self.wallet_balances}")
+            except json.JSONDecodeError:
+                print("ERROR: Corrupted wallet balance file. Resetting balances.")
+                self.wallet_balances = {}
+        else:
+            self.wallet_balances = {}
+
+
+    def save_wallet_balances(self):
+        """Save wallet balances to a JSON file for persistence."""
+        try:
+            with open("wallet_balances.json", "w") as f:
+                json.dump(self.wallet_balances, f, indent=4)
+            print("DEBUG: Wallet balances saved successfully.")
+        except Exception as e:
+            print(f"ERROR: Failed to save wallet balances - {e}")
 
                         
     def update_contract(self, contract_name, new_code, sender):
@@ -768,9 +849,14 @@ def add_new_transaction():
     }
 
     instance.unconfirmed_transactions.append(transaction)
+
+    # ✅ Save the updated unconfirmed transactions
+    instance.save_pending_transactions()
+
     print(f"Transaction added successfully: {transaction}")
 
     return jsonify({"message": "Transaction added to the pool"}), 201
+
     
 @app.route('/broadcast_transaction', methods=['POST'])
 def broadcast_transaction():
@@ -1366,11 +1452,20 @@ def debug_hashes():
 @app.route('/pending_transactions', methods=['GET'])
 def get_pending_transactions():
     """Returns all unconfirmed transactions."""
-    print("DEBUG: Returning unconfirmed transactions:", ifchain.unconfirmed_transactions)  # 🔍 Debug Log
+    
+    instance = get_ifchain_instance()
+
+    # ✅ Load pending transactions before returning
+    instance.load_pending_transactions()
+
+    print("DEBUG: Returning unconfirmed transactions:", instance.unconfirmed_transactions)
+
     return jsonify({
-        "pending_transactions": ifchain.unconfirmed_transactions,
-        "total_pending": len(ifchain.unconfirmed_transactions)
+        "pending_transactions": instance.unconfirmed_transactions,
+        "total_pending": len(instance.unconfirmed_transactions)
     }), 200
+
+
 
     
 @app.route('/blockchain_overview', methods=['GET'])

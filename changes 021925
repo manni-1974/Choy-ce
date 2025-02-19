@@ -1,0 +1,189 @@
+@app.route('/mine', methods=['GET'])
+def mine():
+    """Mine a block, rewarding the miner with gas fees."""
+    miner_wallet = request.args.get('miner_wallet')
+
+    if not miner_wallet:
+        return jsonify({"error": "Miner wallet address required"}), 400
+
+    result = ifchain.mine(miner_wallet)
+
+    if not result:
+        return jsonify({"error": "No transactions to mine"}), 400
+
+    return jsonify({"message": result}), 200
+
+
+
+
+def mine(self, miner_wallet):
+        """Mine a new block if there are pending transactions and reward the miner."""
+
+        if not self.unconfirmed_transactions:
+            print("DEBUG: No transactions available to mine.")
+            return "No transactions to mine"
+
+        last_block = self.last_block()
+        poh_hash = self.poh.current_hash
+
+        transactions_to_add = self.unconfirmed_transactions.copy()
+
+        print(f"DEBUG: Transactions being added to block: {transactions_to_add}")
+
+        gas_collected = 0
+
+        for tx in transactions_to_add:
+            tx["status"] = "confirmed"
+            tx["block_confirmations"] = 1
+            gas_collected += tx.get("gas_fee", 0)
+
+        new_block = Block(
+            index=last_block.index + 1,
+            timestamp=time.time(),
+            transactions=transactions_to_add,
+            previous_hash=last_block.hash,
+            poh_hash=poh_hash
+        )
+        
+        proof = self.proof_of_work(new_block)
+        new_block.hash = proof
+        self.add_block(new_block, proof)
+
+        print(f"DEBUG: Mined Block {new_block.index} - Hash: {new_block.hash}")
+        print(f"DEBUG: Total Blocks in Memory after mining: {len(self.chain)}")
+
+        self.unconfirmed_transactions = []
+        self.save_blockchain_state()
+
+        return f"Block {new_block.index} mined with {len(transactions_to_add)} transactions."
+
+
+
+def add_new_transaction(self, tx_data):
+        print(f"Received transaction: {tx_data}")  # Debugging Log
+
+        required_fields = ["sender", "receiver", "amount", "token"]
+        if not all(field in tx_data for field in required_fields):
+            print("Transaction failed: Missing required fields.")
+            return False
+
+        sender = tx_data["sender"]
+        receiver = tx_data["receiver"]
+        amount = tx_data["amount"]
+        token = tx_data["token"]
+        
+        gas_fee = amount * self.gas_fee
+        net_amount = amount - gas_fee
+
+        sender_balance = self.get_wallet_balance(sender).get("balance", {}).get(token, 0)
+
+        if sender_balance < (amount + gas_fee):
+            print(f"Transaction failed: Insufficient balance for {sender}. Available: {sender_balance}, Required: {amount + gas_fee}")
+            return False
+
+        transaction = {
+            "sender": sender,
+            "receiver": receiver,
+            "amount": amount,
+            "token": token,
+            "gas_fee": gas_fee,
+            "net_amount": net_amount,
+            "hash": hashlib.sha256(json.dumps(tx_data, sort_keys=True).encode()).hexdigest(),
+            "timestamp": time.time(),
+            "tx_type": "transfer",
+            "block_confirmations": 0,
+            "status": "pending",
+            "signatures": []
+        }
+
+        self.unconfirmed_transactions.append(transaction)
+        print(f"Transaction added successfully: {transaction}")
+
+        # ✅ New Debug Logs to Ensure Transaction is Broadcasted
+        print("Now broadcasting transaction to peers...")
+        self.broadcast_transaction(transaction)
+
+        return True
+
+
+
+def force_add_balance(self, wallet_address, token, amount):
+        """Forcefully add balance to a wallet and create a mint transaction."""
+        
+        if wallet_address not in self.wallet_balances:
+            self.wallet_balances[wallet_address] = {}
+        
+        try:
+            amount = float(amount)
+        except ValueError:
+            print(f"Error: Amount must be a valid number, received {amount}")
+            return {"error": "Invalid amount format"}
+        
+        self.wallet_balances[wallet_address][token] = self.wallet_balances[wallet_address].get(token, 0) + amount
+        print(f"Balance updated: {wallet_address} now has {self.wallet_balances[wallet_address][token]} {token}")
+        
+        new_tx = {
+            "sender": "SYSTEM",
+            "receiver": wallet_address,
+            "amount": amount,
+            "token": token,
+            "gas_fee": 0,  # No gas fee for minting
+            "net_amount": amount,
+            "hash": hashlib.sha256(f"mint-{wallet_address}-{time.time()}".encode()).hexdigest(),
+            "timestamp": time.time(),
+            "tx_type": "mint",
+            "block_confirmations": 0,  # It is not yet mined
+            "status": "pending",
+            "signatures": []
+        }
+        
+        self.unconfirmed_transactions.append(new_tx)
+        print(f"Mint transaction added to pool: {new_tx['hash']}")
+
+        return {"message": f"{amount} {token} added to {wallet_address}"}
+
+
+
+
+def get_wallet_balance(self, wallet_address):
+        """Retrieve the balance of tokens for a specific wallet from the chain"""
+
+        balance = {}
+
+        print(f"Fetching balance for {wallet_address} from blockchain...")
+
+        # ✅ Check confirmed transactions in the blockchain
+        for block in self.chain:
+            print(f"Checking block {block.index}...")
+            for tx in block.transactions:
+                token = tx.get("token", "IFC")  # Default to IFC if token key is missing
+                net_amount = tx.get("net_amount", tx.get("amount", 0))  # Prevent KeyError
+
+                if tx.get("receiver") == wallet_address:
+                    balance[token] = balance.get(token, 0) + net_amount
+                    print(f"Adding {net_amount} {token} to {wallet_address} from confirmed transaction.")
+
+                if tx.get("sender") == wallet_address:
+                    balance[token] = balance.get(token, 0) - tx.get("amount", 0)  # Prevent KeyError
+                    print(f"Subtracting {tx.get('amount', 0)} {token} from {wallet_address} (sent transaction).")
+
+        # ✅ Check pending (unconfirmed) transactions
+        for tx in self.unconfirmed_transactions:
+            print("Checking unconfirmed transactions...")
+            token = tx.get("token", "IFC")
+            net_amount = tx.get("net_amount", tx.get("amount", 0))  # Prevent KeyError
+
+            if tx.get("receiver") == wallet_address:
+                balance[token] = balance.get(token, 0) + net_amount
+                print(f"Adding {net_amount} {token} from unconfirmed transaction.")
+
+            if tx.get("sender") == wallet_address:
+                balance[token] = balance.get(token, 0) - tx.get("amount", 0)  # Prevent KeyError
+                print(f"Subtracting {tx.get('amount', 0)} {token} from unconfirmed transaction.")
+
+        # ✅ Round final balance for better readability
+        balance = {token: round(amount, 6) for token, amount in balance.items()}
+
+        print(f"Final balance for {wallet_address}: {balance}")
+
+        return {"wallet_address": wallet_address, "balance": balance}

@@ -116,3 +116,66 @@ def mine(self, miner_wallet):
         self.broadcast_block(new_block.to_dict())
 
         return f"Block {new_block.index} mined with {len(transactions_to_add)} transactions."
+
+
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001, debug=True)
+
+
+
+
+def broadcast_transaction(self, tx_data):
+        """Sends a new transaction to all peers."""
+        for peer in self.peers:
+            try:
+                requests.post(f"{peer}/receive_transaction", json=tx_data, timeout=2)
+            except requests.exceptions.RequestException:
+                continue
+
+
+
+
+
+def add_new_transaction(self, tx_data):
+        print(f"Received transaction: {tx_data}")  # Debugging Log
+
+        required_fields = ["sender", "receiver", "amount", "token"]
+        if not all(field in tx_data for field in required_fields):
+            print("Transaction failed: Missing required fields.")
+            return False
+
+        sender = tx_data["sender"]
+        receiver = tx_data["receiver"]
+        amount = tx_data["amount"]
+        token = tx_data["token"]
+        
+        gas_fee = amount * self.gas_fee
+        net_amount = amount - gas_fee
+
+        sender_balance = self.get_wallet_balance(sender).get("balance", {}).get(token, 0)
+
+        if sender_balance < (amount + gas_fee):
+            print(f"Transaction failed: Insufficient balance for {sender}. Available: {sender_balance}, Required: {amount + gas_fee}")
+            return False
+
+        transaction = {
+            "sender": sender,
+            "receiver": receiver,
+            "amount": amount,
+            "token": token,
+            "gas_fee": gas_fee,
+            "net_amount": net_amount,
+            "hash": hashlib.sha256(json.dumps(tx_data, sort_keys=True).encode()).hexdigest(),
+            "timestamp": time.time(),
+            "tx_type": "transfer",
+            "block_confirmations": 0,
+            "status": "pending",
+            "signatures": []
+        }
+
+        self.unconfirmed_transactions.append(transaction)
+        print(f"Transaction added successfully: {transaction}")
+
+        return True

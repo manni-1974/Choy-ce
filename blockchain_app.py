@@ -66,20 +66,16 @@ class Block:
         """Compute SHA-256 hash of block data, excluding the hash field itself."""
         block_string = json.dumps(self.to_dict(include_hash=False), sort_keys=True)
         return hashlib.sha256(block_string.encode()).hexdigest()
-        
+      
+ 
 class IFChain:
     difficulty = 2
     transaction_tax_rate = 0.03
     GAS_FEE_PER_TRANSACTION = 0.001
     GAS_FEE_PER_CONTRACT_EXECUTION = 0.002
     
-class IFChain:
-    difficulty = 2
-    transaction_tax_rate = 0.03
-    GAS_FEE_PER_TRANSACTION = 0.001
-    GAS_FEE_PER_CONTRACT_EXECUTION = 0.002
-    
-    def __init__(self):
+    def __init__(self, port):
+        self.port = port
         self.CONTRACT_STATE_FILE = "contract_states.json"
         self.BLOCKCHAIN_FILE = "blockchain.json"
         self.unconfirmed_transactions = []
@@ -97,7 +93,8 @@ class IFChain:
         self.gas_fee = 0.005
 
         self.load_contract_state()
-
+        self.load_peers()
+        
         # ✅ Prevent Genesis Block Overwriting
         if not os.path.exists(self.BLOCKCHAIN_FILE) or os.stat(self.BLOCKCHAIN_FILE).st_size == 0:
             print("DEBUG: No blockchain file found, creating genesis block.")
@@ -133,19 +130,54 @@ class IFChain:
         return False
 
     def register_peer(self, peer):
-        """Registers a new node in the network."""
+        """Registers a new node in the network and immediately saves it to file."""
+        self_address = f"http://127.0.0.1:{self.port}"  # Get own address
+
+        if peer == self_address:
+            print("DEBUG: Node tried to register itself. Ignoring.")
+            return False  # Prevent self-registration
+
         if peer not in self.peers:
             self.peers.add(peer)
+            self.save_peers()  # Save peers to file
+            print(f"DEBUG: Registered peer {peer}")
             return True
         return False
 
+
+    def save_peers(self):
+        """Saves the peer list to a file for persistence."""
+        with open("peers.json", "w") as f:
+            json.dump(list(self.peers), f)
+        print("Peers saved successfully.")
+
+    def load_peers(self):
+        """Loads peers from a file on startup."""
+        if os.path.exists("peers.json"):
+            with open("peers.json", "r") as f:
+                self.peers = set(json.load(f))
+            print(f"Loaded peers from file: {self.peers}")
+
+            # Ensure the node does not register itself as a peer
+            self_address = f"http://127.0.0.1:{self.port}"
+            if self_address in self.peers:
+                self.peers.remove(self_address)
+
+        else:
+            self.peers = set()
+
+
+
     def broadcast_transaction(self, tx_data):
         """Sends a new transaction to all peers."""
+        print(f"Broadcasting transaction to peers: {self.peers}")  # Debugging Log
         for peer in self.peers:
             try:
-                requests.post(f"{peer}/receive_transaction", json=tx_data, timeout=2)
-            except requests.exceptions.RequestException:
-                continue
+                response = requests.post(f"{peer}/receive_transaction", json=tx_data, timeout=2)
+                print(f"Transaction sent to {peer} Status: {response.status_code} Response: {response.text}")  # Debugging Log
+            except requests.exceptions.RequestException as e:
+                print(f"Failed to send transaction to {peer}: {e}")  # Debugging Log
+
 
     def broadcast_block(self, block_data):
         """Sends a newly mined block to all peers."""
@@ -259,7 +291,12 @@ class IFChain:
         self.unconfirmed_transactions.append(transaction)
         print(f"Transaction added successfully: {transaction}")
 
+        # ✅ New Debug Logs to Ensure Transaction is Broadcasted
+        print("Now broadcasting transaction to peers...")
+        self.broadcast_transaction(transaction)
+
         return True
+
             
     def force_add_balance(self, wallet_address, token, amount):
         """Forcefully add balance to a wallet and create a mint transaction."""
@@ -648,10 +685,8 @@ class IFChain:
 ifchain = None
 
 def get_ifchain_instance():
-    global ifchain
-    if ifchain is None:
-        ifchain = IFChain()
-    return ifchain
+    port = int(os.getenv("FLASK_RUN_PORT", 5001))  # Get port from environment or default to 5001
+    return IFChain(port=port)  # ✅ Pass the port
 
 ifchain = get_ifchain_instance()
 
@@ -737,6 +772,43 @@ def add_new_transaction():
 
     return jsonify({"message": "Transaction added to the pool"}), 201
     
+@app.route('/broadcast_transaction', methods=['POST'])
+def broadcast_transaction():
+    """Broadcasts a new transaction to all peers."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "Invalid transaction data"}), 400
+
+    transaction = {
+        "sender": data["sender"],
+        "receiver": data["receiver"],
+        "amount": data["amount"],
+        "token": data["token"],
+        "gas_fee": 1.0,  # Adjust as needed
+        "net_amount": data["amount"] - 1.0,  # Subtract gas fee
+        "hash": hashlib.sha256(json.dumps(data).encode()).hexdigest(),
+        "timestamp": time.time(),
+        "tx_type": "transfer",
+        "block_confirmations": 0,
+        "status": "pending",
+        "signatures": []
+    }
+
+    # Add to local node
+    ifchain.unconfirmed_transactions.append(transaction)
+
+    # Broadcast to peers
+    for peer in ifchain.peers:
+        try:
+            response = requests.post(f"{peer}/receive_transaction", json=transaction)
+            if response.status_code != 201:
+                print(f"Failed to send transaction to {peer}")
+        except requests.exceptions.RequestException:
+            print(f"Error communicating with peer {peer}")
+
+    return jsonify({"message": "Transaction broadcasted"}), 201
+  
 @app.route('/mine', methods=['GET'])
 def mine():
     """Mine a block, rewarding the miner with gas fees."""
@@ -1293,11 +1365,13 @@ def debug_hashes():
     
 @app.route('/pending_transactions', methods=['GET'])
 def get_pending_transactions():
-    """Retrieve the list of unconfirmed transactions waiting to be mined."""
+    """Returns all unconfirmed transactions."""
+    print("DEBUG: Returning unconfirmed transactions:", ifchain.unconfirmed_transactions)  # 🔍 Debug Log
     return jsonify({
-        "total_pending": len(ifchain.unconfirmed_transactions),
-        "pending_transactions": ifchain.unconfirmed_transactions
+        "pending_transactions": ifchain.unconfirmed_transactions,
+        "total_pending": len(ifchain.unconfirmed_transactions)
     }), 200
+
     
 @app.route('/blockchain_overview', methods=['GET'])
 def blockchain_overview():
@@ -1331,15 +1405,26 @@ def get_block_by_hash(block_hash):
     
 @app.route('/register_peer', methods=['POST'])
 def register_peer():
-    """Registers a new peer node."""
+    """Registers a new peer node, ensuring it does not register itself."""
     data = request.get_json()
     peer = data.get("peer")
 
     if not peer:
         return jsonify({"error": "Peer address required"}), 400
 
-    ifchain.register_peer(peer)
-    return jsonify({"message": f"Peer {peer} added successfully", "peers": list(ifchain.peers)}), 200
+    # Get this node's own address
+    self_address = f"http://{request.host}"
+
+    # Prevent self-registration
+    if peer == self_address:
+        return jsonify({"error": "Cannot add self as a peer"}), 400
+
+    if peer not in ifchain.peers:
+        ifchain.register_peer(peer)
+        return jsonify({"message": f"Peer {peer} added successfully", "peers": list(ifchain.peers)}), 200
+
+    return jsonify({"message": "Peer already exists", "peers": list(ifchain.peers)}), 200
+
 
 @app.route('/peers', methods=['GET'])
 def get_peers():
@@ -1358,24 +1443,34 @@ def receive_block():
 
 @app.route('/receive_transaction', methods=['POST'])
 def receive_transaction():
-    """Receives and stores a new transaction from peers."""
+    """Receives a transaction from another node and prevents rebroadcast loops."""
 
     tx_data = request.get_json()
-    print(f"Received transaction from peer: {tx_data}")  # Debugging
+    print(f"Received transaction from peer: {tx_data}")
+
+    # Add 'origin' field to prevent resending it back
+    tx_data["origin"] = request.host_url.rstrip('/')
 
     required_fields = ["sender", "receiver", "amount", "token"]
     if not all(field in tx_data for field in required_fields):
         print("Transaction failed: Missing required fields.")
         return jsonify({"error": "Invalid transaction data"}), 400
 
+    # Prevent duplicate transactions
+    existing_hashes = {tx["hash"] for tx in ifchain.unconfirmed_transactions}
+    if tx_data["hash"] in existing_hashes:
+        print(f"Transaction already exists, skipping: {tx_data['hash']}")
+        return jsonify({"message": "Transaction already exists"}), 200
+
     success = ifchain.add_new_transaction(tx_data)
-
+    
     if success:
-        print(f"Transaction accepted and added: {tx_data}")  # Debugging
-        return jsonify({"message": "Transaction accepted"}), 200
+        print(f"Transaction accepted and added: {tx_data}")
+        return jsonify({"message": "Transaction received and added"}), 201
 
-    print(f"Transaction rejected: {tx_data}")  # Debugging
+    print(f"Transaction rejected: {tx_data}")
     return jsonify({"error": "Invalid transaction"}), 400
+
     
 @app.route('/sync_chain', methods=['GET'])
 def sync_chain():
@@ -1490,7 +1585,9 @@ def save_blockchain():
     blockchain.save_blockchain_state()
     return jsonify({"message": "Blockchain state saved successfully"}), 200
   
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("FLASK_RUN_PORT", 5001))
+    app.run(host="0.0.0.0", port=port)
+
 
 

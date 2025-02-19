@@ -114,38 +114,52 @@ class IFChain:
         longest_chain = None
         max_length = len(self.chain)
 
+        print(f"DEBUG: Syncing with peers {self.peers}")
+
         for peer in self.peers:
             try:
-                response = requests.get(f"{peer}/chain")
+                response = requests.get(f"{peer}/chain", timeout=3)  # Ensure we get a response quickly
                 if response.status_code == 200:
                     peer_chain = response.json().get("chain", [])
                     peer_length = len(peer_chain)
 
+                    print(f"DEBUG: Peer {peer} has chain length {peer_length}")
+
+                    # If the peer's chain is longer, update our local copy
                     if peer_length > max_length:
                         max_length = peer_length
                         longest_chain = peer_chain
-            except requests.exceptions.RequestException:
-                continue
+            except requests.exceptions.RequestException as e:
+                print(f"ERROR: Failed to connect to {peer} - {e}")
 
         if longest_chain:
+            # Convert JSON blocks to Block objects to update local chain
             self.chain = [Block(**block) for block in longest_chain]
-            return True
-        return False
+            self.save_blockchain_state()
+            print(f"DEBUG: Synced to a longer chain of length {max_length}")
+            return {"message": "Blockchain synchronized successfully."}, 200
 
-    def register_peer(self, peer):
-        """Registers a new node in the network and immediately saves it to file."""
-        self_address = f"http://127.0.0.1:{self.port}"  # Get own address
+        print("DEBUG: No valid longer chain found. Sync skipped.")
+        return {"error": "No longer chain found or sync failed."}, 400
 
-        if peer == self_address:
-            print("DEBUG: Node tried to register itself. Ignoring.")
-            return False  # Prevent self-registration
+    def validate_chain(self, chain):
+        """Ensures the chain received from peers is valid before replacing local chain."""
+        for i in range(1, len(chain)):
+            prev_block = chain[i - 1]
+            curr_block = chain[i]
 
-        if peer not in self.peers:
-            self.peers.add(peer)
-            self.save_peers()  # Save peers to file
-            print(f"DEBUG: Registered peer {peer}")
-            return True
-        return False
+            # Validate hash link
+            if curr_block["previous_hash"] != prev_block["hash"]:
+                print(f"ERROR: Invalid chain link at index {curr_block['index']}")
+                return False
+
+            # Validate proof of work
+            if not curr_block["hash"].startswith("0" * IFChain.difficulty):
+                print(f"ERROR: Invalid proof of work at index {curr_block['index']}")
+                return False
+
+        return True
+
 
 
     def save_peers(self):
@@ -168,7 +182,29 @@ class IFChain:
 
         else:
             self.peers = set()
+    
+    def register_peer(self, peer):
+        """Registers a new node in the network and immediately saves it to file."""
+        self_address = f"http://127.0.0.1:{self.port}"  # Get own address
 
+        if peer == self_address:
+            print("DEBUG: Node tried to register itself. Ignoring.")
+            return False  # Prevent self-registration
+
+        if peer not in self.peers:
+            self.peers.add(peer)
+            self.save_peers()  # Save peers to file
+            print(f"DEBUG: Registered peer {peer}")
+
+            # 🔹 Notify the new peer about this node
+            try:
+                requests.post(f"{peer}/register_peer", json={"peer": self_address}, timeout=5)
+                print(f"DEBUG: Notified {peer} to register this node as a peer.")
+            except requests.exceptions.RequestException as e:
+                print(f"WARNING: Failed to notify {peer}. Error: {e}")
+
+            return True
+        return False
 
 
     def broadcast_transaction(self, tx_data):
@@ -1497,6 +1533,11 @@ def get_block_by_hash(block_hash):
         if block.compute_hash() == block_hash:
             return jsonify(block.to_dict()), 200
     return jsonify({"error": "Block not found"}), 404
+  
+@app.route('/peers', methods=['GET'])
+def get_peers():
+    """Returns the list of registered peers."""
+    return jsonify({"peers": list(ifchain.peers)}), 200
     
 @app.route('/register_peer', methods=['POST'])
 def register_peer():
@@ -1508,7 +1549,7 @@ def register_peer():
         return jsonify({"error": "Peer address required"}), 400
 
     # Get this node's own address
-    self_address = f"http://{request.host}"
+    self_address = f"http://127.0.0.1:{ifchain.port}"
 
     # Prevent self-registration
     if peer == self_address:
@@ -1519,12 +1560,6 @@ def register_peer():
         return jsonify({"message": f"Peer {peer} added successfully", "peers": list(ifchain.peers)}), 200
 
     return jsonify({"message": "Peer already exists", "peers": list(ifchain.peers)}), 200
-
-
-@app.route('/peers', methods=['GET'])
-def get_peers():
-    """Returns the list of registered peers."""
-    return jsonify({"peers": list(ifchain.peers)}), 200
 
 @app.route('/receive_block', methods=['POST'])
 def receive_block():

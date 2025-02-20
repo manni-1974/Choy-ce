@@ -220,11 +220,18 @@ class IFChain:
 
     def broadcast_block(self, block_data):
         """Sends a newly mined block to all peers."""
+        print(f"Broadcasting block {block_data['index']} to peers: {self.peers}")  # Debugging Log
+
         for peer in self.peers:
             try:
-                requests.post(f"{peer}/receive_block", json=block_data, timeout=2)
-            except requests.exceptions.RequestException:
-                continue
+                response = requests.post(f"{peer}/receive_block", json=block_data, timeout=5)
+                if response.status_code == 200:
+                    print(f"Block {block_data['index']} successfully sent to {peer} ✅")
+                else:
+                    print(f"Peer {peer} rejected block {block_data['index']} ❌ Status: {response.status_code} Response: {response.text}")
+            except requests.exceptions.RequestException as e:
+                print(f"Failed to send block {block_data['index']} to {peer}: {e}")  # Debugging Log
+
         
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
@@ -641,7 +648,7 @@ class IFChain:
             return "No transactions to mine"
 
         last_block = self.last_block()
-        poh_hash = self.poh.current_hash
+        poh_hash = self.poh.current_hash  # ✅ Capture current PoH hash
 
         transactions_to_add = self.unconfirmed_transactions.copy()
         print(f"DEBUG: Transactions being added to block: {transactions_to_add}")
@@ -658,7 +665,7 @@ class IFChain:
             timestamp=time.time(),
             transactions=transactions_to_add,
             previous_hash=last_block.hash,
-            poh_hash=poh_hash
+            poh_hash=poh_hash  # ✅ Ensure PoH hash is sent with the block
         )
 
         proof = self.proof_of_work(new_block)
@@ -673,10 +680,12 @@ class IFChain:
 
         print("DEBUG: Current pending transactions AFTER mining:", self.unconfirmed_transactions)  # 🔍 Debugging
 
+        # ✅ Auto-sync: Broadcast the new block to peers
+        self.broadcast_block(new_block.__dict__)  # ✅ Convert to dictionary
+
         return f"Block {new_block.index} mined with {len(transactions_to_add)} transactions."
 
-
-    
+   
     def get_wallet_balance(self, wallet_address):
         """Retrieve the balance of tokens for a specific wallet from the chain and saved balances."""
 
@@ -1563,13 +1572,39 @@ def register_peer():
 
 @app.route('/receive_block', methods=['POST'])
 def receive_block():
-    """Receives and validates a new block from peers."""
+    """Receives and validates a new block from peers before adding it."""
     block_data = request.get_json()
+    print(f"DEBUG: Received block from peer: {block_data}")  # 🔍 Debugging
+
     new_block = Block(**block_data)
 
+    # Get the last block in the local chain
+    last_block = ifchain.last_block()
+
+    # Validate block index
+    if new_block.index != last_block.index + 1:
+        print(f"❌ Block rejected: Incorrect index. Expected {last_block.index + 1}, got {new_block.index}")
+        return jsonify({"error": "Block rejected: Incorrect index"}), 400
+
+    # Validate previous hash
+    if new_block.previous_hash != last_block.hash:
+        print(f"❌ Block rejected: Previous hash mismatch. Expected {last_block.hash}, got {new_block.previous_hash}")
+        return jsonify({"error": "Block rejected: Previous hash mismatch"}), 400
+
+    # ✅ Fix: Accept the PoH hash from the incoming block
+    if hasattr(new_block, "poh_hash"):
+        print(f"🔄 Updating PoH hash from peer: {new_block.poh_hash}")
+        ifchain.poh.current_hash = new_block.poh_hash  # ✅ Accept PoH hash
+
+    # If all checks pass, add the block
     if ifchain.add_block(new_block, new_block.hash):
+        print(f"✅ Block {new_block.index} accepted and added to chain!")
         return jsonify({"message": "Block accepted"}), 200
+
+    print("❌ Block rejected: Failed validation.")
     return jsonify({"error": "Block rejected"}), 400
+
+
 
 @app.route('/receive_transaction', methods=['POST'])
 def receive_transaction():

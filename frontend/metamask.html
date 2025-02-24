@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaMask ETH Wallet</title>
+
+    <!-- ✅ Load Ethers.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+</head>
+<body>
+    <h1>MetaMask ETH Wallet</h1>
+    <p id="wallet-balance">Balance: 0 ETH</p> <!-- ✅ Wallet balance display -->
+
+    <!-- ✅ ETH Amount Input -->
+    <label for="eth-amount">Enter ETH Amount:</label>
+    <input type="number" id="eth-amount" step="0.001" min="0" placeholder="0.1">
+    
+    <button onclick="getWalletBalance()">Refresh Balance</button> <!-- ✅ Refresh button -->
+    <button onclick="sendTransaction()">Send ETH</button> <!-- ✅ Send ETH button -->
+
+    <!-- ✅ Load MetaMask JavaScript file at the END of body to ensure it's loaded -->
+    <script src="metamask.js"></script>
+</body>
+</html>
+

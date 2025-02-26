@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { ethers } = require('ethers');  // Import ethers.js
+const { ethers } = require('ethers'); // Import ethers.js
 
 const app = express();
 const port = 3000;
@@ -12,13 +12,13 @@ app.use(cors()); // Allows all origins
 // ✅ Connect to IFChain Local Blockchain
 const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
 
-// ✅ Fetch Wallet Balance (Now Uses POST)
+// ✅ Fetch Wallet Balance (POST)
 app.post('/api/balance', async (req, res) => {
     try {
-        const { address } = req.body; // Expect address in the request body
+        const { address } = req.body;
 
         // Validate Ethereum address
-        if (!ethers.isAddress(address)) {
+        if (!address || !ethers.isAddress(address)) {
             return res.status(400).json({ error: "Invalid Ethereum address" });
         }
 
@@ -32,7 +32,7 @@ app.post('/api/balance', async (req, res) => {
 // ✅ Send Transactions (POST)
 app.post('/api/send', async (req, res) => {
     try {
-        const { privateKey, to, amount } = req.body; // Expect sender private key, recipient, and amount
+        const { privateKey, to, amount } = req.body;
 
         if (!privateKey || !to || !amount) {
             return res.status(400).json({ error: "Missing parameters (privateKey, to, amount)" });
@@ -41,19 +41,10 @@ app.post('/api/send', async (req, res) => {
             return res.status(400).json({ error: "Invalid recipient address" });
         }
 
-        // Connect wallet with private key
         const wallet = new ethers.Wallet(privateKey, provider);
-
-        // Convert amount to Wei
         const amountInWei = ethers.parseEther(amount.toString());
 
-        // Create and send transaction
-        const tx = await wallet.sendTransaction({
-            to,
-            value: amountInWei
-        });
-
-        // Wait for confirmation
+        const tx = await wallet.sendTransaction({ to, value: amountInWei });
         await tx.wait();
 
         res.json({ message: "Transaction successful", txHash: tx.hash });
@@ -62,15 +53,30 @@ app.post('/api/send', async (req, res) => {
     }
 });
 
-// ✅ Fetch Real Blockchain Transactions (POST)
+app.get('/api/transaction-details', (req, res) => {
+    res.status(400).json({ error: "Use POST instead of GET" });
+});
+
 app.post('/api/transaction-details', async (req, res) => {
     try {
         const latestBlock = await provider.getBlockNumber();
+
+        // Debugging Log
+        console.log("Latest Block:", latestBlock);
+        if (!latestBlock || latestBlock < 0) {
+            throw new Error("Invalid block number fetched from provider.");
+        }
+
         const transactions = [];
 
-        for (let i = latestBlock; i > latestBlock - 10; i--) {
-            const block = await provider.getBlockWithTransactions(i);
-            block.transactions.forEach((tx) => {
+        for (let i = latestBlock; i > latestBlock - 10 && i >= 0; i--) {
+            const block = await provider.getBlock(i, true);
+            if (!block || !block.transactions) continue;
+
+            for (const txHash of block.transactions) {
+                const tx = await provider.getTransaction(txHash);
+                if (!tx) continue;
+
                 transactions.push({
                     hash: tx.hash,
                     blockNo: tx.blockNumber,
@@ -79,34 +85,59 @@ app.post('/api/transaction-details', async (req, res) => {
                     value: ethers.formatEther(tx.value),
                     token: "IF..."
                 });
-            });
+            }
         }
+
+        if (transactions.length === 0) {
+            return res.status(404).json({ error: "No recent transactions found" });
+        }
+
         res.json(transactions);
     } catch (error) {
+        console.error("❌ Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ✅ API to Fetch Chart Data (POST)
+
+
 app.post('/api/transactions', async (req, res) => {
     try {
         const latestBlock = await provider.getBlockNumber();
         const transactions = [];
 
-        for (let i = latestBlock; i > latestBlock - 30; i--) {
+        // ✅ Ensure we don't go below block 0
+        const startBlock = Math.max(0, latestBlock - 30);
+
+        for (let i = latestBlock; i > startBlock; i--) {
             const block = await provider.getBlock(i);
+            if (!block) continue;  // ✅ Skip if block is null
+
             transactions.push({
                 date: new Date(block.timestamp * 1000).toLocaleDateString(),
                 count: block.transactions.length
             });
         }
+
         res.json(transactions);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ✅ Start server
-app.listen(port, () => {
+
+// ✅ Start Server with Improved Error Handling
+app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Server is running on http://localhost:${port}`);
+}).on('error', (err) => {
+    console.error("❌ Server Error:", err.message);
+
+    // Handle specific errors
+    if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${port} is already in use. Try using a different port.`);
+    } else if (err.code === 'EACCES') {
+        console.error(`❌ Permission denied. Try running the command with sudo.`);
+    } else {
+        console.error("❌ Unknown Server Error:", err);
+    }
 });

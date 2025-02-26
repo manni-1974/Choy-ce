@@ -1749,7 +1749,25 @@ def save_blockchain():
     global blockchain  # Ensure Flask recognizes the blockchain instance
     blockchain.save_blockchain_state()
     return jsonify({"message": "Blockchain state saved successfully"}), 200
-  
+    
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "✅ IFChain API is Live on Render!"})
+    
+@app.route("/api/transaction-details", methods=["POST"])
+def get_transactions():
+    transactions = [
+        {
+            "hash": "0x144c9e104c3b14...",
+            "blockNo": 2,
+            "from": "0xf39Fd6e51aad88...",
+            "to": "0x70997970C51812...",
+            "value": "0.01",
+            "token": "IF..."
+        }
+    ]
+    return jsonify(transactions)
+    
 if __name__ == "__main__":
     port = int(os.environ.get("FLASK_RUN_PORT", 5001))
     app.run(host="0.0.0.0", port=port)

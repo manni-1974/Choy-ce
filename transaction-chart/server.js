@@ -1,5 +1,4 @@
 const express = require('express');
-const { faker } = require('@faker-js/faker');
 const cors = require('cors');
 const { ethers } = require('ethers');  // Import ethers.js
 
@@ -10,36 +9,31 @@ const port = 3000;
 app.use(express.json()); // Fixes request body parsing issue
 app.use(cors()); // Allows all origins
 
-// ✅ Connect to local Ganache blockchain
+// ✅ Connect to IFChain Local Blockchain
 const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
 
-// ✅ Function to fetch wallet balance
-async function getWalletBalance(address) {
+// ✅ Fetch Wallet Balance (Now Uses POST)
+app.post('/api/balance', async (req, res) => {
     try {
-        // Validate Ethereum address (disable ENS lookup)
+        const { address } = req.body; // Expect address in the request body
+
+        // Validate Ethereum address
         if (!ethers.isAddress(address)) {
-            throw new Error("Invalid Ethereum address");
+            return res.status(400).json({ error: "Invalid Ethereum address" });
         }
 
         const balance = await provider.getBalance(address);
-        return { balance: ethers.formatEther(balance) };
+        res.json({ balance: ethers.formatEther(balance) });
     } catch (error) {
-        return { error: error.message };
+        res.status(500).json({ error: error.message });
     }
-}
-
-// ✅ API endpoint to fetch wallet balance
-app.get('/api/balance/:address', async (req, res) => {
-    const result = await getWalletBalance(req.params.address);
-    res.json(result);
 });
 
-// ✅ New API endpoint to send ETH transactions
+// ✅ Send Transactions (POST)
 app.post('/api/send', async (req, res) => {
     try {
-        const { privateKey, to, amount } = req.body; // Get input data
+        const { privateKey, to, amount } = req.body; // Expect sender private key, recipient, and amount
 
-        // Validate input
         if (!privateKey || !to || !amount) {
             return res.status(400).json({ error: "Missing parameters (privateKey, to, amount)" });
         }
@@ -68,59 +62,51 @@ app.post('/api/send', async (req, res) => {
     }
 });
 
-// ✅ Function to generate fake transactions for the chart (date and count)
-const generateChartData = () => {
-    const transactions = [];
-    const currentDate = new Date();
+// ✅ Fetch Real Blockchain Transactions (POST)
+app.post('/api/transaction-details', async (req, res) => {
+    try {
+        const latestBlock = await provider.getBlockNumber();
+        const transactions = [];
 
-    for (let i = 29; i >= 0; i--) {
-        const date = new Date(currentDate);
-        date.setDate(date.getDate() - i);
-
-        // Generate fake transaction data for the chart
-        const transactionCount = faker.number.int({ min: 10, max: 100 });
-
-        transactions.push({
-            date: date.toLocaleDateString(),  // MM/DD/YYYY
-            count: transactionCount
-        });
+        for (let i = latestBlock; i > latestBlock - 10; i--) {
+            const block = await provider.getBlockWithTransactions(i);
+            block.transactions.forEach((tx) => {
+                transactions.push({
+                    hash: tx.hash,
+                    blockNo: tx.blockNumber,
+                    from: tx.from,
+                    to: tx.to,
+                    value: ethers.formatEther(tx.value),
+                    token: "IF..."
+                });
+            });
+        }
+        res.json(transactions);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    return transactions;
-};
-
-// ✅ API endpoint to get transaction data for the chart
-app.get('/api/transactions', (req, res) => {
-    const transactions = generateChartData();
-    res.json(transactions);
 });
 
-// ✅ Function to generate fake transactions for the table (hash, blockNo, from, to, etc.)
-const generateTransactionDetails = () => {
-    const transactions = [];
+// ✅ API to Fetch Chart Data (POST)
+app.post('/api/transactions', async (req, res) => {
+    try {
+        const latestBlock = await provider.getBlockNumber();
+        const transactions = [];
 
-    for (let i = 0; i < 10; i++) {
-        transactions.push({
-            hash: faker.string.hexadecimal({ length: 18 }),  // Fake hash (hexadecimal string)
-            blockNo: faker.number.int({ min: 100, max: 200 }),  // Fake block number
-            from: faker.finance.ethereumAddress(),  // Fake 'from' address
-            to: faker.finance.ethereumAddress(),  // Fake 'to' address
-            tax: `${faker.number.int({ min: 1, max: 5 })}%`,  // Fake tax percentage (1-5%)
-            value: `$${faker.commerce.price({ min: 500, max: 5000 })}`,  // Fake value (amount in dollars)
-            token: faker.helpers.arrayElement(['ETH', 'BTC', 'USDT', 'SOL'])  // Random token type
-        });
+        for (let i = latestBlock; i > latestBlock - 30; i--) {
+            const block = await provider.getBlock(i);
+            transactions.push({
+                date: new Date(block.timestamp * 1000).toLocaleDateString(),
+                count: block.transactions.length
+            });
+        }
+        res.json(transactions);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-
-    return transactions;
-};
-
-// ✅ API endpoint to get transaction details for the table
-app.get('/api/transaction-details', (req, res) => {
-    const transactions = generateTransactionDetails();
-    res.json(transactions);
 });
 
 // ✅ Start server
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`🚀 Server is running on http://localhost:${port}`);
 });

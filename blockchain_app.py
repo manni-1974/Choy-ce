@@ -1780,7 +1780,7 @@ def get_stats():
     })
 
 if __name__ == "__main__":
-    port = int(os.environ.get("FLASK_RUN_PORT", 5001))  # ✅ Keep this port
+    port = int(os.environ.get("PORT", 5001))  # Use Render's PORT env variable
     app.run(host="0.0.0.0", port=port)
 
 

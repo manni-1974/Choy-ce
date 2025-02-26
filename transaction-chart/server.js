@@ -1,28 +1,32 @@
 const express = require('express');
-const cors = require('cors');  // ✅ Import CORS correctly
-const { ethers } = require('ethers'); // Import ethers.js
+const cors = require('cors');
+const { ethers } = require('ethers');
+const { google } = require("googleapis");
+const keys = require("./serviceAccount.json");  // ✅ Load Google Sheets credentials
 
 const app = express();
 const port = 3000;
 
-// ✅ Correct CORS Placement
+// ✅ Google Sheets Auth Setup
+const auth = new google.auth.GoogleAuth({
+    credentials: keys,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
+const sheetsClient = google.sheets({ version: "v4", auth });
+
+const SHEET_NAME = "IFChainData";  // ✅ Ensure this is correct
+const SPREADSHEET_ID = "19VzYmyPLvSWQ4VrXM7uIWQCgJxUPj-ug2fRRxCoOW-A";  // ✅ Ensure correct Google Sheet ID
+
+// ✅ CORS Setup
 const corsOptions = {
     origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
     methods: "GET,POST",
     allowedHeaders: ["Content-Type"]
 };
 app.use(cors(corsOptions));
-// ✅ Middleware setup
-app.use(express.json()); // Fixes request body parsing issue
-app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*"); // Allow all or specify domains
-    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    next();
-});
+app.use(express.json());
 
-
-// ✅ Connect to IFChain Local Blockchain
+// ✅ IFChain Local Blockchain Connection
 const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
 
 // ✅ Fetch Wallet Balance (POST)
@@ -30,7 +34,6 @@ app.post('/api/balance', async (req, res) => {
     try {
         const { address } = req.body;
 
-        // Validate Ethereum address
         if (!address || !ethers.isAddress(address)) {
             return res.status(400).json({ error: "Invalid Ethereum address" });
         }
@@ -48,7 +51,7 @@ app.post('/api/send', async (req, res) => {
         const { privateKey, to, amount } = req.body;
 
         if (!privateKey || !to || !amount) {
-            return res.status(400).json({ error: "Missing parameters (privateKey, to, amount)" });
+            return res.status(400).json({ error: "Missing parameters" });
         }
         if (!ethers.isAddress(to)) {
             return res.status(400).json({ error: "Invalid recipient address" });
@@ -66,108 +69,129 @@ app.post('/api/send', async (req, res) => {
     }
 });
 
-app.get('/api/transaction-details', (req, res) => {
-    res.status(400).json({ error: "Use POST instead of GET" });
-});
-
+// ✅ Fetch Recent Transactions
 app.post('/api/transaction-details', async (req, res) => {
     try {
         const latestBlock = await provider.getBlockNumber();
-
-        // Debugging Log
-        console.log("Latest Block:", latestBlock);
-        if (!latestBlock || latestBlock < 0) {
-            throw new Error("Invalid block number fetched from provider.");
-        }
-
         const transactions = [];
 
         for (let i = latestBlock; i > latestBlock - 10 && i >= 0; i--) {
-            const block = await provider.getBlockWithTransactions(i); // ✅ Fixed
-
+            const block = await provider.getBlock(i);
             if (!block || !block.transactions) continue;
 
-            for (const tx of block.transactions) { // ✅ No need for separate getTransaction()
+            for (const txHash of block.transactions) {
+                const tx = await provider.getTransaction(txHash);  // ✅ Fetch full transaction
+                if (!tx) continue;
+
                 transactions.push({
                     hash: tx.hash,
                     blockNo: tx.blockNumber,
                     from: tx.from,
                     to: tx.to,
-                    value: ethers.formatEther(tx.value),
+                    value: tx.value ? ethers.formatEther(tx.value) : "0",  // ✅ Ensure valid value
                     token: "IF..."
                 });
             }
         }
 
-        if (transactions.length === 0) {
-            return res.status(404).json({ error: "No recent transactions found" });
-        }
-
         res.json(transactions);
     } catch (error) {
-        console.error("❌ Error:", error);
+        console.error("❌ Error fetching transactions:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-
-
-app.post('/api/transactions', async (req, res) => {
-    try {
-        const latestBlock = await provider.getBlockNumber();
-        const transactions = [];
-
-        // ✅ Ensure we don't go below block 0
-        const startBlock = Math.max(0, latestBlock - 30);
-
-        for (let i = latestBlock; i > startBlock; i--) {
-            const block = await provider.getBlock(i);
-            if (!block) continue;  // ✅ Skip if block is null
-
-            transactions.push({
-                date: new Date(block.timestamp * 1000).toLocaleDateString(),
-                count: block.transactions.length
-            });
-        }
-
-        res.json(transactions);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
+// ✅ Fetch Blockchain Stats
 app.post("/api/stats", async (req, res) => {
     try {
         const latestBlock = await provider.getBlockNumber();
-        const totalTransactions = latestBlock * 5; // Replace with real data
-        const totalWallets = 5000; // Replace with actual count
-        const avgBlockTime = "2.1s"; // Replace with actual avg block time
+        const block = await provider.getBlock(latestBlock, true);
+        const totalTransactions = latestBlock * 5;  // Example calculation
+        const totalWallets = 5000;
+        const avgBlockTime = "2.1s";
 
-        res.json({
-            totalSupply: "1,000,000 IFC",  // Replace with real supply
+        const stats = {
+            totalSupply: "1,000,000 IFC",
             totalTransactions,
             totalBlocks: latestBlock,
             totalWallets,
             avgBlockTime
-        });
+        };
+
+        res.json(stats);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+// ✅ Save Blockchain Data to Google Sheets
+async function writeToSheet(data) {
+    try {
+        const values = [[
+            data.totalSupply,
+            data.totalTransactions,
+            data.totalBlocks,
+            data.totalWallets,
+            data.avgBlockTime,
+            data.transactions,
+            data.time,
+            data.block,
+            data.from,
+            data.to,
+            data.value,
+            data.token
+        ]];
 
-// ✅ Start Server with Improved Error Handling
+        await sheetsClient.spreadsheets.values.append({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `'Sheet1'!A:L`,
+            valueInputOption: "RAW",
+            insertDataOption: "INSERT_ROWS",
+            resource: { values },
+        });
+
+        console.log("✅ Data successfully written to Google Sheets!");
+    } catch (error) {
+        console.error("❌ Google Sheets Update Failed:", error);
+        throw error;
+    }
+}
+
+// ✅ API to Update Google Sheets with Blockchain Data
+app.post("/api/update-sheet", async (req, res) => {
+    try {
+        const latestBlock = await provider.getBlockNumber();
+        const block = await provider.getBlock(latestBlock);  // ✅ Fetch block
+        let recentTx = null;
+
+        if (block && block.transactions.length > 0) {
+            recentTx = await provider.getTransaction(block.transactions[0]); // ✅ Fetch first transaction
+        }
+
+        const blockchainStats = {
+            totalSupply: "1,000,000 IFC",
+            totalTransactions: latestBlock * 5, // Example calculation
+            totalBlocks: latestBlock,
+            totalWallets: 5000, // Example value
+            avgBlockTime: "2.1s",
+            transactions: recentTx ? recentTx.hash : "N/A",
+            time: new Date().toISOString(),
+            block: latestBlock,
+            from: recentTx ? recentTx.from : "N/A",
+            to: recentTx ? recentTx.to : "N/A",
+            value: recentTx ? ethers.formatEther(recentTx.value) : "N/A",
+            token: "IFC"
+        };
+
+        await writeToSheet(blockchainStats);
+        res.json({ message: "✅ Data added to Google Sheets!" });
+    } catch (error) {
+        console.error("❌ Error updating Google Sheets:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ✅ Start Server
 app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Server is running on http://localhost:${port}`);
-}).on('error', (err) => {
-    console.error("❌ Server Error:", err.message);
-
-    // Handle specific errors
-    if (err.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${port} is already in use. Try using a different port.`);
-    } else if (err.code === 'EACCES') {
-        console.error(`❌ Permission denied. Try running the command with sudo.`);
-    } else {
-        console.error("❌ Unknown Server Error:", err);
-    }
 });

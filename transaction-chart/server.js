@@ -125,6 +125,24 @@ app.post('/api/transactions', async (req, res) => {
     }
 });
 
+app.post("/api/stats", async (req, res) => {
+    try {
+        const latestBlock = await provider.getBlockNumber();
+        const totalTransactions = latestBlock * 5; // Replace with real data
+        const totalWallets = 5000; // Replace with actual count
+        const avgBlockTime = "2.1s"; // Replace with actual avg block time
+
+        res.json({
+            totalSupply: "1,000,000 IFC",  // Replace with real supply
+            totalTransactions,
+            totalBlocks: latestBlock,
+            totalWallets,
+            avgBlockTime
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ✅ Start Server with Improved Error Handling
 app.listen(port, '0.0.0.0', () => {

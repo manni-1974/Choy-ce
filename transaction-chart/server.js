@@ -1,13 +1,26 @@
 const express = require('express');
-const cors = require('cors');
+const cors = require('cors');  // ✅ Import CORS correctly
 const { ethers } = require('ethers'); // Import ethers.js
 
 const app = express();
 const port = 3000;
 
+// ✅ Correct CORS Placement
+const corsOptions = {
+    origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
+    methods: "GET,POST",
+    allowedHeaders: ["Content-Type"]
+};
+app.use(cors(corsOptions));
 // ✅ Middleware setup
 app.use(express.json()); // Fixes request body parsing issue
-app.use(cors()); // Allows all origins
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*"); // Allow all or specify domains
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    next();
+});
+
 
 // ✅ Connect to IFChain Local Blockchain
 const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
@@ -70,13 +83,11 @@ app.post('/api/transaction-details', async (req, res) => {
         const transactions = [];
 
         for (let i = latestBlock; i > latestBlock - 10 && i >= 0; i--) {
-            const block = await provider.getBlock(i, true);
+            const block = await provider.getBlockWithTransactions(i); // ✅ Fixed
+
             if (!block || !block.transactions) continue;
 
-            for (const txHash of block.transactions) {
-                const tx = await provider.getTransaction(txHash);
-                if (!tx) continue;
-
+            for (const tx of block.transactions) { // ✅ No need for separate getTransaction()
                 transactions.push({
                     hash: tx.hash,
                     blockNo: tx.blockNumber,

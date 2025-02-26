@@ -1768,6 +1768,16 @@ def get_transactions():
         }
     ]
     return jsonify(transactions)
+    
+@app.route('/api/stats', methods=['POST'])
+def get_stats():
+    return jsonify({
+        "totalSupply": "1,000,000 IFC",
+        "totalTransactions": 5000,
+        "totalBlocks": 100,
+        "totalWallets": 5000,
+        "avgBlockTime": "2.1s"
+    })
 
 if __name__ == "__main__":
     port = int(os.environ.get("FLASK_RUN_PORT", 5001))  # ✅ Keep this port

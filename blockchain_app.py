@@ -1753,7 +1753,8 @@ def save_blockchain():
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({"message": "✅ IFChain API is Live on Render!"})
-    
+
+# ✅ Ensure this route exists
 @app.route("/api/transaction-details", methods=["POST"])
 def get_transactions():
     transactions = [
@@ -1767,9 +1768,9 @@ def get_transactions():
         }
     ]
     return jsonify(transactions)
-    
+
 if __name__ == "__main__":
-    port = int(os.environ.get("FLASK_RUN_PORT", 5001))
+    port = int(os.environ.get("FLASK_RUN_PORT", 5001))  # ✅ Keep this port
     app.run(host="0.0.0.0", port=port)
 
 

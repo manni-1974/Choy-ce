@@ -1,23 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
-const { google } = require("googleapis");
-const keys = process.env.GOOGLE_SERVICE_ACCOUNT
-  ? JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT)
-  : require("./serviceAccount.json"); // ✅ Uses env var if available, else fallback to local file
 
 const app = express();
 const port = 3000;
-
-// ✅ Google Sheets Auth Setup
-const auth = new google.auth.GoogleAuth({
-    credentials: keys,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-});
-const sheetsClient = google.sheets({ version: "v4", auth });
-
-const SHEET_NAME = "IFChainData";  // ✅ Ensure this is correct
-const SPREADSHEET_ID = "19VzYmyPLvSWQ4VrXM7uIWQCgJxUPj-ug2fRRxCoOW-A";  // ✅ Ensure correct Google Sheet ID
 
 // ✅ CORS Setup
 const corsOptions = {
@@ -28,8 +14,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// ✅ IFChain Local Blockchain Connection
-const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+// ✅ IFChain Blockchain Connection (Update to Alchemy or other RPC)
+const provider = new ethers.JsonRpcProvider("https://eth-sepolia.g.alchemy.com/v2/Q1B8NywX_0C-HDhGK9l1aF_jN_khHNlB"); // Change this if using Alchemy
 
 // ✅ Fetch Wallet Balance (POST)
 app.post('/api/balance', async (req, res) => {
@@ -107,8 +93,7 @@ app.post('/api/transaction-details', async (req, res) => {
 app.post("/api/stats", async (req, res) => {
     try {
         const latestBlock = await provider.getBlockNumber();
-        const block = await provider.getBlock(latestBlock, true);
-        const totalTransactions = latestBlock * 5;  // Example calculation
+        const totalTransactions = latestBlock * 5; // Example calculation
         const totalWallets = 5000;
         const avgBlockTime = "2.1s";
 
@@ -126,73 +111,7 @@ app.post("/api/stats", async (req, res) => {
     }
 });
 
-// ✅ Save Blockchain Data to Google Sheets
-async function writeToSheet(data) {
-    try {
-        const values = [[
-            data.totalSupply,
-            data.totalTransactions,
-            data.totalBlocks,
-            data.totalWallets,
-            data.avgBlockTime,
-            data.transactions,
-            data.time,
-            data.block,
-            data.from,
-            data.to,
-            data.value,
-            data.token
-        ]];
-
-        await sheetsClient.spreadsheets.values.append({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `'Sheet1'!A:L`,
-            valueInputOption: "RAW",
-            insertDataOption: "INSERT_ROWS",
-            resource: { values },
-        });
-
-        console.log("✅ Data successfully written to Google Sheets!");
-    } catch (error) {
-        console.error("❌ Google Sheets Update Failed:", error);
-        throw error;
-    }
-}
-
-// ✅ API to Update Google Sheets with Blockchain Data
-app.post("/api/update-sheet", async (req, res) => {
-    try {
-        const latestBlock = await provider.getBlockNumber();
-        const block = await provider.getBlock(latestBlock);  // ✅ Fetch block
-        let recentTx = null;
-
-        if (block && block.transactions.length > 0) {
-            recentTx = await provider.getTransaction(block.transactions[0]); // ✅ Fetch first transaction
-        }
-
-        const blockchainStats = {
-            totalSupply: "1,000,000 IFC",
-            totalTransactions: latestBlock * 5, // Example calculation
-            totalBlocks: latestBlock,
-            totalWallets: 5000, // Example value
-            avgBlockTime: "2.1s",
-            transactions: recentTx ? recentTx.hash : "N/A",
-            time: new Date().toISOString(),
-            block: latestBlock,
-            from: recentTx ? recentTx.from : "N/A",
-            to: recentTx ? recentTx.to : "N/A",
-            value: recentTx ? ethers.formatEther(recentTx.value) : "N/A",
-            token: "IFC"
-        };
-
-        await writeToSheet(blockchainStats);
-        res.json({ message: "✅ Data added to Google Sheets!" });
-    } catch (error) {
-        console.error("❌ Error updating Google Sheets:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
+// ✅ Health Check API
 app.get("/", (req, res) => {
     res.json({ message: "✅ IFChain API is Live on Render!" });
 });

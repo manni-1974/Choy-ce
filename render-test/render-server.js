@@ -3,7 +3,7 @@ const cors = require('cors');  // ✅ Import CORS correctly
 const { ethers } = require('ethers'); // Import ethers.js
 
 const app = express();
-const port = 3000;
+const serverPort = process.env.PORT || 3000;
 
 // ✅ Correct CORS Placement
 const corsOptions = {
@@ -23,7 +23,7 @@ app.use((req, res, next) => {
 
 
 // ✅ Connect to IFChain Local Blockchain
-const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+const provider = new ethers.JsonRpcProvider("https://eth-sepolia.g.alchemy.com/v2/Q1B8NywX_0C-HDhGK9l1aF_jN_khHNlB");
 
 // ✅ Fetch Wallet Balance (POST)
 app.post('/api/balance', async (req, res) => {
@@ -156,15 +156,16 @@ app.post("/api/stats", async (req, res) => {
 });
 
 
-// ✅ Start Server with Improved Error Handling
-app.listen(port, '0.0.0.0', () => {
-    console.log(`🚀 Server is running on http://localhost:${port}`);
+const serverPort = process.env.PORT || 3000;
+
+app.listen(serverPort, () => {
+    console.log(`🚀 Server is running on port ${serverPort}`);
 }).on('error', (err) => {
     console.error("❌ Server Error:", err.message);
 
     // Handle specific errors
     if (err.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${port} is already in use. Try using a different port.`);
+        console.error(`❌ Port ${serverPort} is already in use. Try using a different port.`);
     } else if (err.code === 'EACCES') {
         console.error(`❌ Permission denied. Try running the command with sudo.`);
     } else {

@@ -1,3 +1,8 @@
+const path = require("path");
+console.log("✅ Running server.js from:", __dirname);
+console.log("✅ Node Modules Path:", path.resolve(__dirname, "node_modules"));
+console.log("✅ Checking Express Path:", path.resolve(__dirname, "node_modules/express"));
+
 const express = require('express');
 const cors = require('cors');  // ✅ Import CORS correctly
 const { ethers } = require('ethers'); // Import ethers.js

@@ -1,8 +1,8 @@
 const express = require('express');
-const app = express();
 const cors = require('cors');  // ✅ Import CORS correctly
 const { ethers } = require('ethers'); // Import ethers.js
 
+const app = express();
 const port = 3000;
 
 // ✅ Correct CORS Placement
@@ -155,6 +155,9 @@ app.post("/api/stats", async (req, res) => {
     }
 });
 
+app.get("/", (req, res) => {
+    res.json({ message: "✅ IFChain API is Live on Localhost!" });
+});
 
 // ✅ Start Server with Improved Error Handling
 app.listen(port, '0.0.0.0', () => {

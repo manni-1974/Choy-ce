@@ -2,7 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
 const { google } = require("googleapis");
-const keys = require("./serviceAccount.json");  // ✅ Load Google Sheets credentials
+const keys = process.env.GOOGLE_SERVICE_ACCOUNT
+  ? JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT)
+  : require("./serviceAccount.json"); // ✅ Uses env var if available, else fallback to local file
 
 const app = express();
 const port = 3000;

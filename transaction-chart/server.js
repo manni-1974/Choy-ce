@@ -1,30 +1,4 @@
 const path = require("path");
-
-// Manually set NODE_PATH to force module resolution
-process.env.NODE_PATH = path.resolve(__dirname, "node_modules");
-require("module").Module._initPaths();
-
-console.log("✅ Running server.js from:", __dirname);
-console.log("✅ NODE_PATH set to:", process.env.NODE_PATH);
-console.log("✅ Expected Express Path:", path.resolve(__dirname, "node_modules/express"));
-
-// Check if Express actually exists
-const fs = require("fs");
-fs.access(path.resolve(__dirname, "node_modules/express"), fs.constants.F_OK, (err) => {
-    if (err) {
-        console.error("❌ Express module NOT found where expected!");
-        process.exit(1);
-    } else {
-        console.log("✅ Express module found.");
-    }
-});
-
-// Load Express using absolute path
-const express = require(path.resolve(__dirname, "node_modules/express"));
-
-
-
-
 const express = require('express');
 const cors = require('cors');  // ✅ Import CORS correctly
 const { ethers } = require('ethers'); // Import ethers.js

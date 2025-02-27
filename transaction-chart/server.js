@@ -1,3 +1,11 @@
+try {
+    require.resolve("express");
+    console.log("✅ Express is installed correctly.");
+} catch (e) {
+    console.error("❌ Express module is missing.");
+    process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');  // ✅ Import CORS correctly
 const { ethers } = require('ethers'); // Import ethers.js

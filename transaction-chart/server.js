@@ -193,6 +193,10 @@ app.post("/api/update-sheet", async (req, res) => {
     }
 });
 
+app.get("/", (req, res) => {
+    res.json({ message: "✅ IFChain API is Live on Render!" });
+});
+
 // ✅ Start Server
 app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Server is running on http://localhost:${port}`);

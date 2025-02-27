@@ -12,7 +12,7 @@ console.log("✅ Running server.js from:", __dirname);
 const app = express();
 const port = 3000;
 
-// ✅ Correct CORS Placement
+// "description": "IFChain Transaction Chart API - Fixing Express Issue"
 const corsOptions = {
     origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
     methods: "GET,POST",

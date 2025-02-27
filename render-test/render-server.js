@@ -155,6 +155,10 @@ app.post("/api/stats", async (req, res) => {
     }
 });
 
+app.get("/", (req, res) => {
+    res.send("🚀 IFChain API is Running! Use /api/* endpoints.");
+});
+
 app.listen(serverPort, () => {
     console.log(`🚀 Server is running on port ${serverPort}`);
 }).on('error', (err) => {

@@ -1,8 +1,8 @@
 const express = require('express');
+const app = express();
 const cors = require('cors');  // ✅ Import CORS correctly
 const { ethers } = require('ethers'); // Import ethers.js
 
-const app = express();
 const port = 3000;
 
 // ✅ Correct CORS Placement

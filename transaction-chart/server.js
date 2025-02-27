@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');  // ✅ Import CORS correctly
 const { ethers } = require('ethers'); // Import ethers.js
 
+console.log("✅ Running server.js from:", __dirname);
+
 const app = express();
 const port = 3000;
 

@@ -155,9 +155,6 @@ app.post("/api/stats", async (req, res) => {
     }
 });
 
-
-const serverPort = process.env.PORT || 3000;
-
 app.listen(serverPort, () => {
     console.log(`🚀 Server is running on port ${serverPort}`);
 }).on('error', (err) => {

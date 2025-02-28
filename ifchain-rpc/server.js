@@ -14,7 +14,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-app.use(express.json({ limit: "1mb" })); // Allows larger request bodies
+app.use(express.json({ limit: "5mb" })); // Allows larger request bodies
 app.use(express.urlencoded({ extended: true })); // Ensures URL-encoded requests work
 
 // ✅ Correct CORS Placement
@@ -171,6 +171,11 @@ app.post("/api/stats", async (req, res) => {
 
 app.get("/", (req, res) => {
     res.send("🚀 IFChain API is Running! Use /api/* endpoints.");
+});
+
+// ✅ Test route for checking POST requests
+app.post("/api/test", (req, res) => {
+    res.json({ message: "Testing POST request" });
 });
 
 // ✅ JSON-RPC Endpoint for MetaMask & Wallets

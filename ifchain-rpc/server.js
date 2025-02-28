@@ -17,12 +17,6 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "5mb" })); // Allows larger request bodies
 app.use(express.urlencoded({ extended: true })); // Ensures URL-encoded requests work
 
-// ✅ Correct CORS Placement
-const corsOptions = {
-    origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
-    methods: "GET,POST",
-    allowedHeaders: ["Content-Type"]
-};
 app.use(cors(corsOptions));
 // ✅ Middleware setup
 app.use(express.json({ limit: "10mb" }));  // ✅ Increase request body size limit

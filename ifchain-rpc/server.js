@@ -162,6 +162,50 @@ app.get("/", (req, res) => {
     res.send("🚀 IFChain API is Running! Use /api/* endpoints.");
 });
 
+// ✅ JSON-RPC Endpoint for MetaMask & Wallets
+app.post('/', async (req, res) => {
+    try {
+        const { method, params, id } = req.body;
+
+        if (!method) {
+            return res.status(400).json({ error: "Missing method in JSON-RPC request" });
+        }
+
+        let result;
+        switch (method) {
+            case "eth_chainId":
+                result = "0x270F"; // ✅ IFChain Chain ID (9999 in HEX)
+                break;
+            case "eth_blockNumber":
+                result = await provider.getBlockNumber();
+                result = ethers.toBeHex(result); // Convert to Hex (required for MetaMask)
+                break;
+            case "eth_getBalance":
+                if (!params || params.length === 0) return res.status(400).json({ error: "Missing parameters" });
+                result = await provider.getBalance(params[0]);
+                result = ethers.toBeHex(result);
+                break;
+            case "eth_sendRawTransaction":
+                if (!params || params.length === 0) return res.status(400).json({ error: "Missing transaction data" });
+                result = await provider.sendTransaction(params[0]);
+                break;
+            case "net_version":
+                result = "9999"; // ✅ IFChain Network ID
+                break;
+            case "eth_gasPrice":
+                result = ethers.toBeHex(await provider.getGasPrice()); // Return gas price in Hex
+                break;
+            default:
+                return res.status(400).json({ error: `Method ${method} not supported for IFChain` });
+        }
+
+        res.json({ jsonrpc: "2.0", id, result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
 app.listen(serverPort, () => {
     console.log(`🚀 Server is running on port ${serverPort}`);
 }).on('error', (err) => {

@@ -14,7 +14,9 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" })); // Allows larger request bodies
+app.use(express.urlencoded({ extended: true })); // Ensures URL-encoded requests work
+
 // ✅ Correct CORS Placement
 const corsOptions = {
     origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
@@ -189,7 +191,7 @@ app.post("/", async (req, res) => {
                 break;
             case "eth_blockNumber":
                 result = await provider.getBlockNumber();
-                result = ethers.utils.hexValue(result);
+                result = ethers.toBeHex(result);
                 break;
             case "eth_getBalance":
                 if (!params || params.length === 0) return res.status(400).json({ error: "Missing address" });
@@ -212,6 +214,7 @@ app.post("/", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 app.listen(serverPort, () => {
     console.log(`🚀 Server is running on port ${serverPort}`);
 }).on('error', (err) => {

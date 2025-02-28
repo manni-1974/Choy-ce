@@ -7,6 +7,14 @@ const serverPort = process.env.PORT || 3000;
 
 require('dotenv').config();
 
+const corsOptions = {
+    origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
+    methods: "GET, POST",
+    allowedHeaders: ["Content-Type"]
+};
+app.use(cors(corsOptions));
+
+app.use(express.json());
 // ✅ Correct CORS Placement
 const corsOptions = {
     origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
@@ -180,26 +188,18 @@ app.post("/", async (req, res) => {
                 break;
             case "eth_blockNumber":
                 result = await provider.getBlockNumber();
-                result = ethers.utils.hexValue(result); // Convert block number to Hex
+                result = ethers.utils.hexValue(result);
                 break;
             case "eth_getBalance":
-                if (!params || params.length === 0) {
-                    return res.status(400).json({ error: "Missing address parameter" });
-                }
+                if (!params || params.length === 0) return res.status(400).json({ error: "Missing address" });
                 result = await provider.getBalance(params[0]);
-                result = ethers.utils.hexValue(result); // Convert balance to Hex
-                break;
-            case "eth_sendRawTransaction":
-                if (!params || params.length === 0) {
-                    return res.status(400).json({ error: "Missing transaction data" });
-                }
-                result = await provider.sendTransaction(params[0]);
+                result = ethers.utils.hexValue(result);
                 break;
             case "net_version":
                 result = "9999"; // ✅ IFChain Network ID
                 break;
             case "eth_gasPrice":
-                result = ethers.utils.hexValue(await provider.getGasPrice()); // ✅ Return gas price in Hex
+                result = ethers.utils.hexValue(await provider.getGasPrice());
                 break;
             default:
                 return res.status(400).json({ error: `Method ${method} not supported for IFChain` });
@@ -211,7 +211,6 @@ app.post("/", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.listen(serverPort, () => {
     console.log(`🚀 Server is running on port ${serverPort}`);
 }).on('error', (err) => {

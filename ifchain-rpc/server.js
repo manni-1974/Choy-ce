@@ -5,22 +5,15 @@ const { ethers } = require('ethers'); // Import ethers.js
 const app = express();
 const serverPort = process.env.PORT || 3000;
 
-require('dotenv').config();
-
+// ✅ Correct CORS Placement
 const corsOptions = {
     origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
-    methods: "GET, POST",
+    methods: "GET,POST",
     allowedHeaders: ["Content-Type"]
 };
 app.use(cors(corsOptions));
-
-app.use(express.json({ limit: "5mb" })); // Allows larger request bodies
-app.use(express.urlencoded({ extended: true })); // Ensures URL-encoded requests work
-
-app.use(cors(corsOptions));
 // ✅ Middleware setup
-app.use(express.json({ limit: "10mb" }));  // ✅ Increase request body size limit
-app.use(express.urlencoded({ extended: true, limit: "10mb" })); // ✅ Handle URL-encoded data
+app.use(express.json()); // Fixes request body parsing issue
 app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*"); // Allow all or specify domains
     res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -30,8 +23,7 @@ app.use((req, res, next) => {
 
 
 // ✅ Connect to IFChain Local Blockchain
-const IFCHAIN_RPC = process.env.IFCHAIN_RPC || "https://rpc.ifchain.com";
-const provider = new ethers.JsonRpcProvider(IFCHAIN_RPC);
+const provider = new ethers.JsonRpcProvider("https://eth-sepolia.g.alchemy.com/v2/Q1B8NywX_0C-HDhGK9l1aF_jN_khHNlB");
 
 // ✅ Fetch Wallet Balance (POST)
 app.post('/api/balance', async (req, res) => {
@@ -165,53 +157,6 @@ app.post("/api/stats", async (req, res) => {
 
 app.get("/", (req, res) => {
     res.send("🚀 IFChain API is Running! Use /api/* endpoints.");
-});
-
-// ✅ Test route for checking POST requests
-app.post("/api/test", (req, res) => {
-    res.json({ message: "Testing POST request" });
-});
-
-// ✅ JSON-RPC Endpoint for MetaMask & Wallets
-app.post("/", async (req, res) => {
-    try {
-        const { method, params, id } = req.body;
-
-        if (!method) {
-            return res.status(400).json({ error: "Missing method in JSON-RPC request" });
-        }
-
-        console.log(`📡 RPC Request Received: ${method}`);
-
-        let result;
-        switch (method) {
-            case "eth_chainId":
-                result = "0x270F"; // ✅ IFChain Chain ID (9999 in HEX)
-                break;
-            case "eth_blockNumber":
-                result = await provider.getBlockNumber();
-                result = ethers.toBeHex(result);
-                break;
-            case "eth_getBalance":
-                if (!params || params.length === 0) return res.status(400).json({ error: "Missing address" });
-                result = await provider.getBalance(params[0]);
-                result = ethers.utils.hexValue(result);
-                break;
-            case "net_version":
-                result = "9999"; // ✅ IFChain Network ID
-                break;
-            case "eth_gasPrice":
-                result = ethers.utils.hexValue(await provider.getGasPrice());
-                break;
-            default:
-                return res.status(400).json({ error: `Method ${method} not supported for IFChain` });
-        }
-
-        res.json({ jsonrpc: "2.0", id, result });
-    } catch (error) {
-        console.error("❌ RPC Error:", error);
-        res.status(500).json({ error: error.message });
-    }
 });
 
 app.listen(serverPort, () => {

@@ -12,7 +12,6 @@ const corsOptions = {
     methods: "GET,POST",
     allowedHeaders: ["Content-Type"]
 };
-app.use(cors(corsOptions));
 
 // ✅ Middleware setup
 app.use(express.json());
@@ -63,6 +62,50 @@ app.post('/api/send', async (req, res) => {
 
         res.json({ message: "Transaction successful", txHash: tx.hash });
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/transaction-details', (req, res) => {
+    res.status(400).json({ error: "Use POST instead of GET" });
+});
+
+app.post('/api/transaction-details', async (req, res) => {
+    try {
+        const latestBlock = await provider.getBlockNumber();
+
+        // Debugging Log
+        console.log("Latest Block:", latestBlock);
+        if (!latestBlock || latestBlock < 0) {
+            throw new Error("Invalid block number fetched from provider.");
+        }
+
+        const transactions = [];
+
+        for (let i = latestBlock; i > latestBlock - 10 && i >= 0; i--) {
+            const block = await provider.getBlockWithTransactions(i); // ✅ Fixed
+
+            if (!block || !block.transactions) continue;
+
+            for (const tx of block.transactions) { // ✅ No need for separate getTransaction()
+                transactions.push({
+                    hash: tx.hash,
+                    blockNo: tx.blockNumber,
+                    from: tx.from,
+                    to: tx.to,
+                    value: ethers.formatEther(tx.value),
+                    token: "IF..."
+                });
+            }
+        }
+
+        if (transactions.length === 0) {
+            return res.status(404).json({ error: "No recent transactions found" });
+        }
+
+        res.json(transactions);
+    } catch (error) {
+        console.error("❌ Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -128,11 +171,6 @@ app.post("/", async (req, res) => {
         console.error("❌ RPC Error:", error);
         res.status(500).json({ error: error.message });
     }
-});
-
-// ✅ Test Endpoint
-app.post("/api/test", (req, res) => {
-    res.json({ message: "Testing POST request" });
 });
 
 // ✅ Default Route

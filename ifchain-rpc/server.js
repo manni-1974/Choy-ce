@@ -23,7 +23,7 @@ app.use((req, res, next) => {
 
 
 // ✅ Connect to IFChain Local Blockchain
-const provider = new ethers.JsonRpcProvider("https://eth-sepolia.g.alchemy.com/v2/Q1B8NywX_0C-HDhGK9l1aF_jN_khHNlB");
+const provider = new ethers.JsonRpcProvider(process.env.IFCHAIN_RPC || "https://rpc.ifchain.com");
 
 // ✅ Fetch Wallet Balance (POST)
 app.post('/api/balance', async (req, res) => {

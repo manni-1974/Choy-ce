@@ -4,9 +4,9 @@
   "description": "IFChain RPC Server",
   "main": "if-server.js",
   "scripts": {
-    "start": "node if-server.js"
+    "start": "node if-server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  }
   "keywords": [
     "ifchain",
     "rpc",

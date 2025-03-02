@@ -1,29 +1,21 @@
 const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
-require('dotenv').config();  // ✅ Load environment variables
+require('dotenv').config(); // ✅ Load environment variables
 
 const app = express();
 const serverPort = process.env.PORT || 3000;
 
-// ✅ Correct CORS Placement
-const corsOptions = {
+// ✅ Unified CORS Setup (No Duplicates)
+app.use(cors({
     origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
-    methods: "GET,POST",
+    methods: "GET, POST",
     allowedHeaders: ["Content-Type"]
-};
+}));
 
-app.use(cors(corsOptions));
-// ✅ Middleware setup
-app.use(express.json());
-app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    next();
-});
+app.use(express.json()); // ✅ Parses incoming JSON requests
 
-// ✅ Connect to IFChain RPC (Use ENV Variable)
+// ✅ Connect to IFChain RPC
 const IFCHAIN_RPC = process.env.IFCHAIN_RPC || "https://rpc.ifchain.com";
 const provider = new ethers.JsonRpcProvider(IFCHAIN_RPC);
 
@@ -31,11 +23,9 @@ const provider = new ethers.JsonRpcProvider(IFCHAIN_RPC);
 app.post('/api/balance', async (req, res) => {
     try {
         const { address } = req.body;
-
         if (!address || !ethers.isAddress(address)) {
             return res.status(400).json({ error: "Invalid Ethereum address" });
         }
-
         const balance = await provider.getBalance(address);
         res.json({ balance: ethers.formatEther(balance) });
     } catch (error) {
@@ -47,7 +37,6 @@ app.post('/api/balance', async (req, res) => {
 app.post('/api/send', async (req, res) => {
     try {
         const { privateKey, to, amount } = req.body;
-
         if (!privateKey || !to || !amount) {
             return res.status(400).json({ error: "Missing parameters (privateKey, to, amount)" });
         }
@@ -56,39 +45,23 @@ app.post('/api/send', async (req, res) => {
         }
 
         const wallet = new ethers.Wallet(privateKey, provider);
-        const amountInWei = ethers.parseEther(amount.toString());
-
-        const tx = await wallet.sendTransaction({ to, value: amountInWei });
+        const tx = await wallet.sendTransaction({ to, value: ethers.parseEther(amount.toString()) });
         await tx.wait();
-
         res.json({ message: "Transaction successful", txHash: tx.hash });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.get('/api/transaction-details', (req, res) => {
-    res.status(400).json({ error: "Use POST instead of GET" });
-});
-
+// ✅ Transaction Details
 app.post('/api/transaction-details', async (req, res) => {
     try {
         const latestBlock = await provider.getBlockNumber();
-
-        // Debugging Log
-        console.log("Latest Block:", latestBlock);
-        if (!latestBlock || latestBlock < 0) {
-            throw new Error("Invalid block number fetched from provider.");
-        }
-
         const transactions = [];
-
         for (let i = latestBlock; i > latestBlock - 10 && i >= 0; i--) {
-            const block = await provider.getBlockWithTransactions(i); // ✅ Fixed
-
+            const block = await provider.getBlockWithTransactions(i);
             if (!block || !block.transactions) continue;
-
-            for (const tx of block.transactions) { // ✅ No need for separate getTransaction()
+            for (const tx of block.transactions) {
                 transactions.push({
                     hash: tx.hash,
                     blockNo: tx.blockNumber,
@@ -99,36 +72,7 @@ app.post('/api/transaction-details', async (req, res) => {
                 });
             }
         }
-
-        if (transactions.length === 0) {
-            return res.status(404).json({ error: "No recent transactions found" });
-        }
-
-        res.json(transactions);
-    } catch (error) {
-        console.error("❌ Error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ✅ Check Transactions
-app.post('/api/transactions', async (req, res) => {
-    try {
-        const latestBlock = await provider.getBlockNumber();
-        const transactions = [];
-        const startBlock = Math.max(0, latestBlock - 30);
-
-        for (let i = latestBlock; i > startBlock; i--) {
-            const block = await provider.getBlock(i);
-            if (!block) continue;
-
-            transactions.push({
-                date: new Date(block.timestamp * 1000).toLocaleDateString(),
-                count: block.transactions.length
-            });
-        }
-
-        res.json(transactions);
+        res.json(transactions.length ? transactions : { error: "No recent transactions found" });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -138,17 +82,14 @@ app.post('/api/transactions', async (req, res) => {
 app.post("/", async (req, res) => {
     try {
         const { method, params, id } = req.body;
-
-        if (!method) {
-            return res.status(400).json({ error: "Missing method in JSON-RPC request" });
-        }
+        if (!method) return res.status(400).json({ error: "Missing method in JSON-RPC request" });
 
         console.log(`📡 RPC Request Received: ${method}`);
 
         let result;
         switch (method) {
             case "eth_chainId":
-                result = "0x270F"; // ✅ IFChain Chain ID (9999 in HEX)
+                result = "0x270F"; // IFChain Chain ID (9999 in HEX)
                 break;
             case "eth_blockNumber":
                 result = ethers.toBeHex(await provider.getBlockNumber());
@@ -158,7 +99,7 @@ app.post("/", async (req, res) => {
                 result = ethers.toBeHex(await provider.getBalance(params[0]));
                 break;
             case "net_version":
-                result = "9999"; // ✅ IFChain Network ID
+                result = "9999"; // IFChain Network ID
                 break;
             case "eth_gasPrice":
                 result = ethers.toBeHex(await provider.getGasPrice());

@@ -25,6 +25,7 @@ app.use((req, res, next) => {
 // ✅ Connect to IFChain Local Blockchain
 const provider = new ethers.JsonRpcProvider(process.env.IFCHAIN_RPC || "https://rpc.ifchain.com");
 
+console.log("Using RPC URL:", process.env.IFCHAIN_RPC || "https://rpc.ifchain.com");  // ✅ Debugging output
 // ✅ Fetch Wallet Balance (POST)
 app.post('/api/balance', async (req, res) => {
     try {

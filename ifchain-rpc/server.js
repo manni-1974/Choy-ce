@@ -7,10 +7,11 @@ const serverPort = process.env.PORT || 3000;
 
 // ✅ Correct CORS Placement
 const corsOptions = {
-    origin: ["https://ifchain.io", "https://choy-ce.onrender.com"],
+    origin: "*", // ⚠️ Temporary: Allows all domains
     methods: "GET,POST",
     allowedHeaders: ["Content-Type"]
 };
+
 app.use(cors(corsOptions));
 // ✅ Middleware setup
 app.use(express.json()); // Fixes request body parsing issue
@@ -22,10 +23,8 @@ app.use((req, res, next) => {
 });
 
 
-// ✅ Connect to IFChain Local Blockchain
-const provider = new ethers.JsonRpcProvider(process.env.IFCHAIN_RPC || "https://rpc.ifchain.com");
-
-console.log("Using RPC URL:", process.env.IFCHAIN_RPC || "https://rpc.ifchain.com");  // ✅ Debugging output
+const provider = new ethers.JsonRpcProvider(process.env.IFCHAIN_RPC || "http://localhost:8545");
+console.log("Using RPC URL:", process.env.IFCHAIN_RPC || "http://localhost:8545");
 // ✅ Fetch Wallet Balance (POST)
 app.post('/api/balance', async (req, res) => {
     try {

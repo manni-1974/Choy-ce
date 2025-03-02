@@ -4,7 +4,7 @@ const { ethers } = require('ethers');
 require('dotenv').config();  // ✅ Load environment variables
 
 const app = express();
-const serverPort = process.env.PORT || 5000; // ✅ Render uses env PORT, fallback for local
+const serverPort = process.env.PORT || 5050; // ✅ Render uses env PORT, fallback for local
 
 // ✅ Define CORS options before using it
 const corsOptions = {

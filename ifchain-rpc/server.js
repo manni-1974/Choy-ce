@@ -24,6 +24,7 @@ app.use((req, res, next) => {
 
 
 const provider = new ethers.JsonRpcProvider(process.env.IFCHAIN_RPC || "http://localhost:8545");
+
 console.log("Using RPC URL:", process.env.IFCHAIN_RPC || "http://localhost:8545");
 // ✅ Fetch Wallet Balance (POST)
 app.post('/api/balance', async (req, res) => {

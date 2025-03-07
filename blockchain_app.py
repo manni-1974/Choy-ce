@@ -1291,14 +1291,19 @@ def get_wallet_transactions(wallet_address):
         "transactions": transactions
     }), 200
     
-@app.route('/wallet_balance/<wallet_address>', methods=['GET'])
-def get_wallet_balance(wallet_address):
-    """Retrieve the balance of a specific wallet from the blockchain"""
-    
-    balance = ifchain.get_wallet_balance(wallet_address)  # Ensure it calls blockchain method
-    print(f"API Debug: Balance for {wallet_address}: {balance}")  # Debugging
-    
-    return jsonify(balance), 200
+@app.route('/get_wallet_balance', methods=['GET'])
+def api_get_wallet_balance():
+    wallet_address = request.args.get('wallet_address')
+
+    if not wallet_address:
+        return jsonify({"error": "Wallet address is required"}), 400
+
+    try:
+        balance = ifchain.get_wallet_balance(wallet_address)  # Calls the function you provided
+        return jsonify(balance), 200
+    except Exception as e:
+        print(f"Error fetching wallet balance: {e}")  # Debugging logs
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
 
 @app.route('/search_transactions', methods=['GET'])
 def search_transactions():

@@ -21,7 +21,7 @@ const blockchainUrl = "https://ifc-blockchain.onrender.com";
 
 app.get('/api/health', async (req, res) => {
     try {
-        const response = await axios.get(providerUrl);
+        const response = await axios.get(`${providerUrl}/blockchain_overview`);  // ✅ Use blockchain_overview endpoint
         return res.json({
             status: "API is running",
             provider: providerUrl,
@@ -34,6 +34,7 @@ app.get('/api/health', async (req, res) => {
         });
     }
 });
+
 
 app.get('/api/block/:block_identifier?', async (req, res) => {
     try {

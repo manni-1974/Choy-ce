@@ -17,7 +17,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // ✅ Blockchain Provider Setup
-const blockchainUrl = "https://ifc-vugd.onrender.com";
+const blockchainUrl = "https://ifc-blockchain.onrender.com";
 
 app.get('/api/health', async (req, res) => {
     try {

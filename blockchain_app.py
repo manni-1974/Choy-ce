@@ -1226,17 +1226,12 @@ def get_block(index):
         return jsonify(ifchain.chain[index].__dict__), 200
     return jsonify({"error": "Block not found"}), 404
     
-@app.route('/all_transactions', methods=['GET'])
-def fetch_all_transactions():
-    """Retrieve all transactions in the blockchain."""
-    transactions = []
-    for block in ifchain.chain:
-        transactions.extend(block.transactions)
+@app.route('/api/total-transactions', methods=['GET'])
+def get_total_transactions():
+    """Retrieve the total number of transactions in the blockchain."""
+    total_transactions = sum(len(block.transactions) for block in ifchain.chain)
 
-    return jsonify({
-        "total_transactions": len(transactions),
-        "transactions": transactions
-    }), 200
+    return jsonify({"count": total_transactions}), 200
     
 @app.route('/wallet_transactions/<wallet_address>', methods=['GET'])
 def get_wallet_transactions(wallet_address):
@@ -1479,6 +1474,28 @@ def get_block_details(block_identifier):
         return jsonify({"error": "Block not found"}), 404
 
     return jsonify(block.to_dict()), 200
+    
+@app.route('/block/latest', methods=['GET'])
+def get_latest_block():
+    """
+    Retrieve the latest block.
+    """
+    if len(ifchain.chain) == 0:
+        return jsonify({"error": "No blocks available"}), 404
+
+    latest_block = ifchain.chain[-1]  # Get the last block
+    return jsonify(latest_block.to_dict()), 200
+    
+@app.route('/blockNumber', methods=['GET'])
+def get_latest_block_number():
+    """
+    Retrieve the latest block number.
+    """
+    if not ifchain.chain:
+        return jsonify({"error": "Blockchain is empty"}), 404
+
+    latest_block = ifchain.chain[-1]  # Get the last block
+    return jsonify({"blockNumber": latest_block.index}), 200
     
 @app.route('/debug_hashes', methods=['GET'])
 def debug_hashes():

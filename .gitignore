@@ -170,3 +170,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 transaction-chart/serviceAccount.json
+.DS_Store

@@ -34,6 +34,9 @@ const blockchainUrl = process.env.BLOCKCHAIN_URL || "https://ifc-blockchain.onre
 
 console.log("✅ providerUrl set to:", blockchainUrl);
 
+console.log("🔍 DEBUG: Process.env contains BLOCKCHAIN_URL?", !!process.env.BLOCKCHAIN_URL);
+console.log("🔍 DEBUG: Raw BLOCKCHAIN_URL Value:", process.env.BLOCKCHAIN_URL);
+
 app.use(cors());
 app.use(express.json());
 

@@ -29,6 +29,7 @@ const corsOptions = {
     allowedHeaders: ["Content-Type", "Authorization"], // ✅ Allow essential headers
 };
 
+require('dotenv').config();  // Ensure environment variables are loaded
 const blockchainUrl = process.env.BLOCKCHAIN_URL || "https://ifc-blockchain.onrender.com";
 
 console.log("✅ providerUrl set to:", blockchainUrl);

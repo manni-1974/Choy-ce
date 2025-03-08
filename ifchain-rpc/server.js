@@ -21,16 +21,17 @@ const providerUrl = "https://ifc-blockchain.onrender.com";
 console.log("✅ providerUrl set to:", providerUrl);
 
 app.get('/api/health', async (req, res) => {
-    console.log("🔹 API Health Check: Fetching from:", providerUrl);
     try {
-        const response = await axios.get(`${providerUrl}/blockchain_overview`);
+        console.log("🔄 Fetching blockchain overview from:", providerUrl);
+        const response = await axios.get(providerUrl, { timeout: 5000 });
+
         return res.json({
             status: "API is running",
             provider: providerUrl,
             blockchain_status: response.data
         });
     } catch (error) {
-        console.error("❌ Error fetching blockchain data:", error.message);
+        console.error("🚨 Error connecting to blockchain:", error.message);
         return res.status(500).json({
             error: "Blockchain backend is unreachable",
             details: error.message

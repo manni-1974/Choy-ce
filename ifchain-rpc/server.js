@@ -1,10 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios'); // ✅ Import axios for REST API calls
-const { ethers } = require('ethers'); // ✅ Import ethers.js for blockchain interaction
+const axios = require('axios');
+const { ethers } = require('ethers');
 
 const app = express();
-const serverPort = process.env.PORT || 3000;
+const serverPort = process.env.PORT || 10000;  // ✅ Matches Render's port
 
 // ✅ CORS Configuration (Update this when moving to production)
 const corsOptions = {
@@ -13,21 +13,21 @@ const corsOptions = {
     allowedHeaders: ["Content-Type", "Authorization"], // ✅ Allow essential headers
 };
 
-app.use(cors(corsOptions));
-app.use(express.json());
+const blockchainUrl = process.env.BLOCKCHAIN_URL || "https://ifc-blockchain.onrender.com";
 
-// ✅ Blockchain Provider Setup
-const providerUrl = "https://ifc-blockchain.onrender.com";
-console.log("✅ providerUrl set to:", providerUrl);
+console.log("✅ providerUrl set to:", blockchainUrl);
+
+app.use(cors());
+app.use(express.json());
 
 app.get('/api/health', async (req, res) => {
     try {
-        console.log("🔄 Fetching blockchain overview from:", providerUrl);
-        const response = await axios.get(providerUrl, { timeout: 5000 });
+        console.log("🔄 Checking blockchain health:", blockchainUrl);
+        const response = await axios.get(`${blockchainUrl}/blockchain_overview`, { timeout: 5000 });
 
         return res.json({
             status: "API is running",
-            provider: providerUrl,
+            provider: blockchainUrl,
             blockchain_status: response.data
         });
     } catch (error) {
@@ -37,6 +37,12 @@ app.get('/api/health', async (req, res) => {
             details: error.message
         });
     }
+});
+
+// ✅ Prevent Infinite Loops
+process.on('SIGTERM', () => {
+    console.log("🛑 Server shutting down...");
+    process.exit(0);
 });
 
 app.get('/api/block/:block_identifier?', async (req, res) => {

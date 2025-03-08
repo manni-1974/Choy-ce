@@ -6,6 +6,22 @@ const { ethers } = require('ethers');
 const app = express();
 const serverPort = process.env.PORT || 10000;  // ✅ Matches Render's port
 
+const dns = require('dns');
+
+const discoveryHostname = process.env.RENDER_DISCOVERY_SERVICE || "ifc-blockchain.onrender.com"; // Default to blockchain URL
+
+function fetchAndPrintIPs() {
+  dns.lookup(discoveryHostname, { all: true, family: 4 }, (err, addresses) => {
+    if (err) {
+      console.error('Error resolving DNS:', err);
+      return;
+    }
+    const ips = addresses.map(a => a.address);
+    console.log(`✅ IP addresses for ${discoveryHostname}: ${ips.join(', ')}`);
+  });
+}
+
+fetchAndPrintIPs();
 // ✅ CORS Configuration (Update this when moving to production)
 const corsOptions = {
     origin: "*", // ⚠️ Allow all for now, but restrict in production (e.g., `https://your-framer-site.com`)

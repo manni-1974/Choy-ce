@@ -17,7 +17,8 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // ✅ Blockchain Provider Setup
-const blockchainUrl = "https://ifc-blockchain.onrender.com";
+const providerUrl = process.env.BLOCKCHAIN_URL || "https://ifc-blockchain.onrender.com";
+console.log("✅ providerUrl set to:", providerUrl);
 
 app.get('/api/health', async (req, res) => {
     console.log("🔹 API Health Check: Fetching from:", providerUrl);

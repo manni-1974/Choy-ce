@@ -1,0 +1,6 @@
+✅ providerUrl set to: https://ifc-blockchain.onrender.com
+🔍 DEBUG: Process.env contains BLOCKCHAIN_URL? false
+🔍 DEBUG: Raw BLOCKCHAIN_URL Value: undefined
+Using RPC URL: http://127.0.0.1:5001
+🚀 Server is running on port 10000
+✅ IP addresses for ifc-blockchain.onrender.com: 216.24.57.4, 216.24.57.252

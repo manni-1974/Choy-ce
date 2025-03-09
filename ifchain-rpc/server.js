@@ -4,41 +4,24 @@ const axios = require('axios');
 const { ethers } = require('ethers');
 
 const app = express();
-const serverPort = process.env.PORT || 10000;  // ✅ Matches Render's port
+const serverPort = process.env.PORT || 10000;  // ✅ Set default port for Digital Ocean
 
-const dns = require('dns');
-
-const discoveryHostname = process.env.RENDER_DISCOVERY_SERVICE || "ifc-blockchain.onrender.com"; // Default to blockchain URL
-
-function fetchAndPrintIPs() {
-  dns.lookup(discoveryHostname, { all: true, family: 4 }, (err, addresses) => {
-    if (err) {
-      console.error('Error resolving DNS:', err);
-      return;
-    }
-    const ips = addresses.map(a => a.address);
-    console.log(`✅ IP addresses for ${discoveryHostname}: ${ips.join(', ')}`);
-  });
-}
-
-fetchAndPrintIPs();
-// ✅ CORS Configuration (Update this when moving to production)
+// ✅ CORS Configuration (Update when moving to production)
 const corsOptions = {
     origin: "*", // ⚠️ Allow all for now, but restrict in production (e.g., `https://your-framer-site.com`)
-    methods: ["GET", "POST", "PUT", "DELETE"], // ✅ Ensure all needed HTTP methods are allowed
-    allowedHeaders: ["Content-Type", "Authorization"], // ✅ Allow essential headers
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"]
 };
 
-require('dotenv').config();  // Ensure environment variables are loaded
-const blockchainUrl = process.env.BLOCKCHAIN_URL || "https://ifc-blockchain.onrender.com";
-
-console.log("✅ providerUrl set to:", blockchainUrl);
-
-console.log("🔍 DEBUG: Process.env contains BLOCKCHAIN_URL?", !!process.env.BLOCKCHAIN_URL);
-console.log("🔍 DEBUG: Raw BLOCKCHAIN_URL Value:", process.env.BLOCKCHAIN_URL);
-
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// ✅ Load environment variables
+require('dotenv').config();
+
+// ✅ Set Blockchain URL (Update with your Digital Ocean IP)
+const blockchainUrl = "http://127.0.0.1:5001";  // ✅ Use local DigitalOcean backend
+console.log("✅ Blockchain API URL set to:", blockchainUrl);
 
 app.get('/api/health', async (req, res) => {
     try {

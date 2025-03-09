@@ -1,0 +1,48 @@
+✅ providerUrl set to: https://ifc-blockchain.onrender.com
+🔍 DEBUG: Process.env contains BLOCKCHAIN_URL? false
+🔍 DEBUG: Raw BLOCKCHAIN_URL Value: undefined
+Using RPC URL: http://127.0.0.1:5001
+🚀 Server is running on port 10000
+✅ IP addresses for ifc-blockchain.onrender.com: 216.24.57.4, 216.24.57.252
+🛑 Server shutting down...
+✅ providerUrl set to: https://ifc-blockchain.onrender.com
+🔍 DEBUG: Process.env contains BLOCKCHAIN_URL? false
+🔍 DEBUG: Raw BLOCKCHAIN_URL Value: undefined
+Using RPC URL: http://127.0.0.1:5001
+🚀 Server is running on port 10000
+✅ IP addresses for ifc-blockchain.onrender.com: 216.24.57.4, 216.24.57.252
+🛑 Server shutting down...
+✅ providerUrl set to: https://ifc-blockchain.onrender.com
+🔍 DEBUG: Process.env contains BLOCKCHAIN_URL? false
+🔍 DEBUG: Raw BLOCKCHAIN_URL Value: undefined
+Using RPC URL: http://127.0.0.1:5001
+🚀 Server is running on port 10000
+✅ IP addresses for ifc-blockchain.onrender.com: 216.24.57.252, 216.24.57.4
+🔄 Checking blockchain health: https://ifc-blockchain.onrender.com
+🚨 Error connecting to blockchain: Request failed with status code 404
+🔄 Checking blockchain health: https://ifc-blockchain.onrender.com
+🚨 Error connecting to blockchain: Request failed with status code 404
+🛑 Server shutting down...
+✅ providerUrl set to: https://ifc-blockchain.onrender.com
+🔍 DEBUG: Process.env contains BLOCKCHAIN_URL? false
+🔍 DEBUG: Raw BLOCKCHAIN_URL Value: undefined
+Using RPC URL: http://127.0.0.1:5001
+🚀 Server is running on port 10000
+✅ IP addresses for ifc-blockchain.onrender.com: 216.24.57.252, 216.24.57.4
+🛑 Server shutting down...
+✅ providerUrl set to: https://ifc-blockchain.onrender.com
+🔍 DEBUG: Process.env contains BLOCKCHAIN_URL? false
+🔍 DEBUG: Raw BLOCKCHAIN_URL Value: undefined
+Using RPC URL: http://127.0.0.1:5001
+🚀 Server is running on port 10000
+✅ IP addresses for ifc-blockchain.onrender.com: 216.24.57.252, 216.24.57.4
+🔄 Checking blockchain health: https://ifc-blockchain.onrender.com
+🚨 Error connecting to blockchain: Request failed with status code 404
+🛑 Server shutting down...
+✅ providerUrl set to: https://ifc-blockchain.onrender.com
+🔍 DEBUG: Process.env contains BLOCKCHAIN_URL? false
+🔍 DEBUG: Raw BLOCKCHAIN_URL Value: undefined
+Using RPC URL: http://127.0.0.1:5001
+🚀 Server is running on port 10000
+✅ IP addresses for ifc-blockchain.onrender.com: 216.24.57.4, 216.24.57.252
+🛑 Server shutting down...

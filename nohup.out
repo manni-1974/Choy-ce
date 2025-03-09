@@ -1,0 +1,82 @@
+Traceback (most recent call last):
+  File "/opt/ifchain/blockchain_app.py", line 1, in <module>
+    from flask import Flask, jsonify, request
+ModuleNotFoundError: No module named 'flask'
+DEBUG: Loaded wallet balances: {'wallet1': {'IFC': 2000.0}}
+DEBUG: Loaded pending transactions from file.
+Loaded peers from file: {'https://ifc-blockchain.onrender.com'}
+DEBUG: Blockchain file exists, loading from storage.
+DEBUG: Loading blockchain from file...
+DEBUG: Loaded 9 blocks from file.
+DEBUG: Syncing with peers {'https://ifc-blockchain.onrender.com'}
+DEBUG: Peer https://ifc-blockchain.onrender.com has chain length 9
+DEBUG: No valid longer chain found. Sync skipped.
+ * Serving Flask app 'blockchain_app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://138.197.3.201:5001
+[33mPress CTRL+C to quit[0m
+DEBUG: Loaded wallet balances: {'wallet1': {'IFC': 2000.0}}
+DEBUG: Loaded pending transactions from file.
+Loaded peers from file: {'https://ifc-blockchain.onrender.com'}
+DEBUG: Blockchain file exists, loading from storage.
+DEBUG: Loading blockchain from file...
+DEBUG: Loaded 9 blocks from file.
+DEBUG: Syncing with peers {'https://ifc-blockchain.onrender.com'}
+DEBUG: Peer https://ifc-blockchain.onrender.com has chain length 9
+DEBUG: No valid longer chain found. Sync skipped.
+ * Serving Flask app 'blockchain_app'
+ * Debug mode: off
+Address already in use
+Port 5001 is in use by another program. Either identify and stop that program, or start the server with a different port.
+DEBUG: Loaded wallet balances: {'wallet1': {'IFC': 2000.0}}
+DEBUG: Loaded pending transactions from file.
+Loaded peers from file: {'https://ifc-blockchain.onrender.com'}
+DEBUG: Blockchain file exists, loading from storage.
+DEBUG: Loading blockchain from file...
+DEBUG: Loaded 9 blocks from file.
+DEBUG: Syncing with peers {'https://ifc-blockchain.onrender.com'}
+DEBUG: No valid longer chain found. Sync skipped.
+ * Serving Flask app 'blockchain_app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://138.197.3.201:5001
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [09/Mar/2025 17:18:45] "GET /blockchain_overview HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2025 17:22:34] "GET /blockchain_overview HTTP/1.1" 200 -
+DEBUG: Loaded wallet balances: {'wallet1': {'IFC': 2000.0}}
+DEBUG: Loaded pending transactions from file.
+Loaded peers from file: {'https://ifc-blockchain.onrender.com'}
+DEBUG: Blockchain file exists, loading from storage.
+DEBUG: Loading blockchain from file...
+DEBUG: Loaded 9 blocks from file.
+DEBUG: Syncing with peers {'https://ifc-blockchain.onrender.com'}
+DEBUG: No valid longer chain found. Sync skipped.
+ * Serving Flask app 'blockchain_app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://138.197.3.201:5001
+[33mPress CTRL+C to quit[0m
+DEBUG: Loaded wallet balances: {'wallet1': {'IFC': 2000.0}}
+DEBUG: Loaded pending transactions from file.
+Loaded peers from file: {'https://ifc-blockchain.onrender.com'}
+DEBUG: Blockchain file exists, loading from storage.
+DEBUG: Loading blockchain from file...
+DEBUG: Loaded 9 blocks from file.
+DEBUG: Syncing with peers {'https://ifc-blockchain.onrender.com'}
+DEBUG: No valid longer chain found. Sync skipped.
+ * Serving Flask app 'blockchain_app'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://138.197.3.201:5001
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [09/Mar/2025 17:36:32] "GET /blockchain_overview HTTP/1.1" 200 -
+127.0.0.1 - - [09/Mar/2025 17:42:14] "GET /blockchain_overview HTTP/1.1" 200 -

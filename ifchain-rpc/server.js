@@ -155,6 +155,21 @@ app.post('/api/send', async (req, res) => {
     }
 });
 
+app.get('/api/pending_transactions', async (req, res) => {
+    try {
+        console.log("🔍 Fetching pending transactions from:", `${blockchainUrl}/pending_transactions`);
+        
+        const pendingResponse = await axios.get(`${blockchainUrl}/pending_transactions`);
+        
+        console.log("✅ Pending Transactions:", pendingResponse.data);
+        res.json(pendingResponse.data);
+    } catch (error) {
+        console.error("🚨 Error fetching pending transactions:", error.message);
+        res.status(500).json({ error: "Failed to retrieve pending transactions" });
+    }
+});
+
+
 app.get('/api/transaction-details', (req, res) => {
     res.status(400).json({ error: "Use POST instead of GET" });
 });

@@ -120,8 +120,8 @@ app.get('/api/wallet/balance', async (req, res) => {
         const walletAddress = req.query.address;
 
         // Validate Ethereum address
-        if (!walletAddress || !ethers.isAddress(walletAddress)) {
-            return res.status(400).json({ error: "Invalid Ethereum address" });
+        if (!walletAddress) {
+            return res.status(400).json({ error: "Wallet address is required" });
         }
 
         const balance = await provider.getBalance(walletAddress);

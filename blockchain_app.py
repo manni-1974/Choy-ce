@@ -1531,10 +1531,7 @@ def get_pending_transactions():
         "pending_transactions": instance.unconfirmed_transactions,
         "total_pending": len(instance.unconfirmed_transactions)
     }), 200
-
-
-
-    
+   
 @app.route('/blockchain_overview', methods=['GET'])
 def blockchain_overview():
     """Provides an overview of the blockchain status."""
@@ -1774,7 +1771,7 @@ def save_blockchain():
     
 @app.route("/", methods=["GET"])
 def home():
-    return jsonify({"message": "✅ IFChain API is Live on Render!"})
+    return jsonify({"message": "✅ IFChain API is Live on DigitalOcean!"})
 
 # ✅ Ensure this route exists
 @app.route("/api/transaction-details", methods=["POST"])
@@ -1800,6 +1797,10 @@ def get_stats():
         "totalWallets": 5000,
         "avgBlockTime": "2.1s"
     })
+    
+@app.route('/status', methods=['GET'])
+def status():
+    return jsonify({"status": "running", "network": "IFChain"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))  # Use Render's PORT env variable

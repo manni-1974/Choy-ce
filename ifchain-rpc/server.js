@@ -114,6 +114,23 @@ app.post('/api/balance', async (req, res) => {
     }
 });
 
+// ✅ GET Wallet Balance API (for frontend compatibility)
+app.get('/api/wallet/balance', async (req, res) => {
+    try {
+        const walletAddress = req.query.address;
+
+        // Validate Ethereum address
+        if (!walletAddress || !ethers.isAddress(walletAddress)) {
+            return res.status(400).json({ error: "Invalid Ethereum address" });
+        }
+
+        const balance = await provider.getBalance(walletAddress);
+        res.json({ balance: ethers.formatEther(balance) });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ✅ Send Transactions (POST)
 app.post('/api/send', async (req, res) => {
     try {

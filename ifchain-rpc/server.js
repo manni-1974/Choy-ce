@@ -1,10 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const provider = "http://127.0.0.1:5001";  // ✅ IFChain RPC Provider
 const { ethers } = require('ethers');
 
 const app = express();
 const serverPort = process.env.PORT || 3000;  // Force default to 3000
+
 
 // ✅ CORS Configuration (Update when moving to production)
 const corsOptions = {
@@ -119,15 +121,16 @@ app.get('/api/wallet/balance', async (req, res) => {
     try {
         const walletAddress = req.query.address;
 
-        // Validate Ethereum address
         if (!walletAddress) {
             return res.status(400).json({ error: "Wallet address is required" });
         }
 
-        const balance = await provider.getBalance(walletAddress);
-        res.json({ balance: ethers.formatEther(balance) });
+        // ✅ Request wallet balance from the IFChain blockchain backend
+        const response = await axios.get(`${provider}/wallet/balance?address=${walletAddress}`);
+        res.json(response.data);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("🚨 Error fetching wallet balance:", error.message);
+        res.status(500).json({ error: "Blockchain backend is unreachable" });
     }
 });
 

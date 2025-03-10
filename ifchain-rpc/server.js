@@ -4,7 +4,7 @@ const axios = require('axios');
 const { ethers } = require('ethers');
 
 const app = express();
-const serverPort = process.env.PORT || 10000;  // ✅ Set default port for Digital Ocean
+const serverPort = process.env.PORT || 3000;  // Force default to 3000
 
 // ✅ CORS Configuration (Update when moving to production)
 const corsOptions = {
@@ -311,19 +311,22 @@ app.get("/", (req, res) => {
     res.send("🚀 IFChain API is Running! Use /api/* endpoints.");
 });
 
-app.listen(serverPort, () => {
-    console.log(`🚀 Server is running on port ${serverPort}`);
+app.listen(serverPort, '0.0.0.0', () => {
+    console.log(`🚀 Server is running on http://0.0.0.0:${serverPort}`);
 }).on('error', (err) => {
     console.error("❌ Server Error:", err.message);
 
     // Handle specific errors
     if (err.code === 'EADDRINUSE') {
         console.error(`❌ Port ${serverPort} is already in use. Try using a different port.`);
+        process.exit(1);
     } else if (err.code === 'EACCES') {
         console.error(`❌ Permission denied. Try running the command with sudo.`);
+        process.exit(1);
     } else {
         console.error("❌ Unknown Server Error:", err);
     }
 });
+
 
 

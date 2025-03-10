@@ -126,7 +126,7 @@ app.get('/api/wallet/balance', async (req, res) => {
         }
 
         // ✅ Request wallet balance from the IFChain blockchain backend
-        const response = await axios.get(`${provider}/wallet/balance?address=${walletAddress}`);
+        const response = await axios.get(`${provider}/get_wallet_balance?wallet_address=${walletAddress}`);
         res.json(response.data);
     } catch (error) {
         console.error("🚨 Error fetching wallet balance:", error.message);

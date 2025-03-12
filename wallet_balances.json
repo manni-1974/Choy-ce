@@ -1,5 +1,14 @@
 {
     "wallet1": {
         "IFC": 2000.0
+    },
+    "8927e397e76eefec748486fd2b73941647513231": {
+        "IFC": 300.0
+    },
+    "556d3be05475fbf4d9bbf17e25294b25c6457671": {
+        "IFC": 0
+    },
+    "new_wallet_address_here": {
+        "IFC": 100.0
     }
 }

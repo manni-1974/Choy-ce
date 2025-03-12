@@ -10,6 +10,7 @@ async function main() {
     console.log(`✅ IF... deployed to: ${await ifToken.getAddress()}`); // ✅ Fix: Use getAddress()
 }
 
+// ✅ Ensure `main()` is properly executed and errors are handled
 main().catch((error) => {
     console.error(error);
     process.exitCode = 1;

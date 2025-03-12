@@ -7,6 +7,7 @@ import schedule
 import threading
 from datetime import datetime
 import requests
+from ecdsa import SECP256k1, SigningKey
 
 app = Flask(__name__)
 
@@ -160,8 +161,25 @@ class IFChain:
 
         return True
 
+    def generate_wallet(self):
+        """Generates a new wallet with private and public keys."""
+        sk = SigningKey.generate(curve=SECP256k1)  # Generate private key
+        pk = sk.get_verifying_key()  # Generate public key
 
+        private_key = sk.to_string().hex()  # Convert private key to hex string
+        public_key = pk.to_string().hex()  # Convert public key to hex string
 
+        # Optionally save the wallet and return its information
+        wallet_address = public_key[:40]  # This is just a simple address format. You can adjust based on your needs.
+
+        # Store wallet balances with a default value (e.g., 0 balance for a new wallet)
+        if wallet_address not in self.wallet_balances:
+            self.wallet_balances[wallet_address] = {"IFC": 0}  # Initialize balance for the wallet
+
+        self.save_wallet_balances()  # Save updated wallet balances to file
+
+        return {"private_key": private_key, "public_key": public_key, "address": wallet_address}
+        
     def save_peers(self):
         """Saves the peer list to a file for persistence."""
         with open("peers.json", "w") as f:
@@ -359,11 +377,15 @@ class IFChain:
             print(f"Error: Amount must be a valid number, received {amount}")
             return {"error": "Invalid amount format"}
 
-        # ✅ Update balance
-        self.wallet_balances[wallet_address][token] = self.wallet_balances[wallet_address].get(token, 0) + amount
-        print(f"Balance updated: {wallet_address} now has {self.wallet_balances[wallet_address][token]} {token}")
+        # Check the current balance before updating
+        current_balance = self.wallet_balances[wallet_address].get(token, 0)
+        print(f"DEBUG: Current balance of {wallet_address} {token}: {current_balance}")
 
-        # ✅ Save balance persistently
+        # Update the balance
+        self.wallet_balances[wallet_address][token] = current_balance + amount
+        print(f"DEBUG: New balance of {wallet_address} {token}: {self.wallet_balances[wallet_address][token]}")
+
+        # Save balance persistently
         self.save_wallet_balances()
 
         new_tx = {
@@ -382,10 +404,10 @@ class IFChain:
         }
 
         self.unconfirmed_transactions.append(new_tx)
-        print(f"Mint transaction added to pool: {new_tx['hash']}")
+        print(f"DEBUG: Mint transaction added to pool: {new_tx['hash']}")
 
         return {"message": f"{amount} {token} added to {wallet_address}"}
-
+        
     def save_pending_transactions(self):
         """Save unconfirmed transactions to a file for persistence."""
         with open("pending_transactions.json", "w") as f:
@@ -746,17 +768,16 @@ class IFChain:
                 self.wallet_balances = {}
         else:
             self.wallet_balances = {}
-
+            print("DEBUG: No wallet balances file found. Initialized empty balances.")
 
     def save_wallet_balances(self):
         """Save wallet balances to a JSON file for persistence."""
         try:
             with open("wallet_balances.json", "w") as f:
                 json.dump(self.wallet_balances, f, indent=4)
-            print("DEBUG: Wallet balances saved successfully.")
+            print(f"DEBUG: Wallet balances saved successfully: {self.wallet_balances}")
         except Exception as e:
             print(f"ERROR: Failed to save wallet balances - {e}")
-
                         
     def update_contract(self, contract_name, new_code, sender):
         """Update an existing smart contract with ownership verification."""
@@ -835,6 +856,13 @@ def get_chain():
         "chain": chain_data
     })
 
+@app.route('/create_wallet', methods=['POST'])
+def create_wallet():
+    """Generates a new wallet and returns the private key, public key, and wallet address."""
+    instance = get_ifchain_instance()  # Get the IFChain instance
+    wallet = instance.generate_wallet()  # Generate the wallet
+    return jsonify(wallet), 200  # Return wallet information as JSON
+    
 @app.route('/inflation_schedule', methods=['GET'])
 def get_inflation_schedule():
     """Returns the inflation schedule."""

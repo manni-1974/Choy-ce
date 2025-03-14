@@ -77,7 +77,7 @@ class IFChain:
     
     def __init__(self, port):
         self.port = port
-        self.chain_id = "if1985"
+        self.chain_id = "1985"
         self.CONTRACT_STATE_FILE = "contract_states.json"
         self.BLOCKCHAIN_FILE = "blockchain.json"
         self.PENDING_TRANSACTIONS_FILE = "pending_transactions.json"

@@ -77,6 +77,7 @@ class IFChain:
     
     def __init__(self, port):
         self.port = port
+        self.chain_id = "if1985"
         self.CONTRACT_STATE_FILE = "contract_states.json"
         self.BLOCKCHAIN_FILE = "blockchain.json"
         self.PENDING_TRANSACTIONS_FILE = "pending_transactions.json"
@@ -122,8 +123,14 @@ class IFChain:
                 response = requests.get(f"{peer}/chain", timeout=3)  # Ensure we get a response quickly
                 if response.status_code == 200:
                     peer_chain = response.json().get("chain", [])
-                    peer_length = len(peer_chain)
+                    peer_chain_id = response.json().get("chain_id", "")  # Get peer's chain ID
 
+                    # Validate Chain ID to ensure you are connecting to the correct blockchain
+                    if peer_chain_id != self.chain_id:
+                        print(f"ERROR: Peer {peer} has a different Chain ID. Sync aborted.")
+                        continue
+
+                    peer_length = len(peer_chain)
                     print(f"DEBUG: Peer {peer} has chain length {peer_length}")
 
                     # If the peer's chain is longer, update our local copy
@@ -142,6 +149,7 @@ class IFChain:
 
         print("DEBUG: No valid longer chain found. Sync skipped.")
         return {"error": "No longer chain found or sync failed."}, 400
+
 
     def validate_chain(self, chain):
         """Ensures the chain received from peers is valid before replacing local chain."""
@@ -254,6 +262,7 @@ class IFChain:
     def create_genesis_block(self):
         genesis_block = Block(0, time.time(), [], "0", self.poh.current_hash)
         genesis_block.hash = genesis_block.compute_hash()
+        genesis_block.chain_id = self.chain_id  # Attach Chain ID to the genesis block
         self.chain.append(genesis_block)
         self.save_blockchain_state()
         
@@ -1579,9 +1588,10 @@ def blockchain_overview():
         "total_wallets": total_wallets,
         "total_smart_contracts": total_contracts,
         "pending_transactions": pending_transactions,
-        "latest_block": latest_block
+        "latest_block": latest_block,
+        "chain_id": ifchain.chain_id  # Add Chain ID to the overview
     }), 200
-    
+   
 @app.route('/block/<block_hash>', methods=['GET'])
 def get_block_by_hash(block_hash):
     """Retrieve a block by its hash."""

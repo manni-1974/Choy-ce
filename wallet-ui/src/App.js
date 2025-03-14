@@ -1,26 +1,21 @@
-import React, { useEffect, useState } from "react";
-import "./App.css";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import HomePage from "./HomePage";
+import WalletConnectPage from "./WalletConnectPage";  // Correct path if necessary
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
 
 function App() {
-  const [balance, setBalance] = useState(null);
-  const walletAddress = "wallet1"; // Change this to test different wallets
-
-  useEffect(() => {
-    fetch(`http://138.197.3.201:3000/api/wallet/balance?address=${walletAddress}`)
-      .then((response) => response.json())
-      .then((data) => setBalance(data.balance?.IFC || 0))
-      .catch((error) => console.error("Error fetching balance:", error));
-  }, []);
-
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>IFChain Wallet</h1>
-        <p>Wallet Address: {walletAddress}</p>
-        <p>Balance: {balance} IFC</p>
-      </header>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/wallet-connect" element={<WalletConnectPage />} />
+      </Routes>
+    </Router>
   );
 }
 
 export default App;
+
+
